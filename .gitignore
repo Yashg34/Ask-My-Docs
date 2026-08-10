@@ -1,0 +1,7 @@
+# --- Python & AI Microservice --- 
+
+.env
+__pycache__/
+chroma_db/
+data/
+*.sqlite3
