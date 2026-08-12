@@ -6,7 +6,7 @@ class CrossEncoderReranker:
         print("⏳ Loading Cross-Encoder model (this might take a few seconds)...")
         self.model = CrossEncoder(model_name)
 
-    def rerank(self, query: str, candidates: list, top_n: int = 3, threshold: float = 0.3):
+    def rerank(self, query: str, candidates: list, top_n: int = 3, threshold: float = 0.05):
         if not candidates:
             return []
 

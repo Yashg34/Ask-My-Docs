@@ -1,6 +1,7 @@
 import os
 import shutil
 import time
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -16,20 +17,33 @@ from ingestion.indexer import build_indexes
 
 load_dotenv()
 
-app = FastAPI(title="Ask My Docs - Phase 2 (Hybrid & Rerank)")
+vector_retriever = None
+bm25_retriever = None
+reranker = None
+generator = None
 
-print("🚀 Initializing AI Components (Loading models into memory)...")
-vector_retriever = VectorRetriever()
-bm25_retriever = BM25Retriever()
-reranker = CrossEncoderReranker()
-generator = Generator()
-print("✅ All components loaded successfully!")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global vector_retriever, bm25_retriever, reranker, generator
+    
+    print("🚀 Initializing AI Components (Loading models into memory)...")
+    vector_retriever = VectorRetriever()
+    bm25_retriever = BM25Retriever()
+    reranker = CrossEncoderReranker()
+    generator = Generator()
+    print("✅ All components loaded successfully!")
+    
+    yield  
+    
+    print("🛑 Shutting down AI components...")
+
+app = FastAPI(title="Ask My Docs - Phase 2 (Hybrid & Rerank)", lifespan=lifespan)
 
 class QueryRequest(BaseModel):
     query: str
-    top_k: int = 15      # First-stage retrieval (Pulls 15 from Vector, 15 from BM25)
+    top_k: int = 10      # First-stage retrieval (Pulls 10 from Vector, 10 from BM25)
     top_n: int = 3       # Post-reranking (Sends only the top 3 best chunks to Gemini)
-    threshold: float = 0.3
+    threshold: float = 0.05
 
 class QueryResponse(BaseModel):
     query: str
@@ -61,6 +75,7 @@ def upload_and_ingest(file: UploadFile = File(...)):
         
         build_indexes(chunks)
         
+        # This will dynamically reload the BM25 index after new ingestion
         global bm25_retriever
         bm25_retriever = BM25Retriever()
         
@@ -79,11 +94,14 @@ def handle_query(request: QueryRequest):
     start_time = time.time()
 
     try:
+        # Step 1: Retrieval
         vector_results = vector_retriever.retrieve(request.query, top_k=request.top_k)
         bm25_results = bm25_retriever.retrieve(request.query, top_k=request.top_k)
 
+        # Step 2: Fusion
         fused_candidates = reciprocal_rank_fusion(vector_results, bm25_results)
 
+        # Step 3: Reranking
         final_chunks = reranker.rerank(
             query=request.query, 
             candidates=fused_candidates, 
@@ -91,9 +109,10 @@ def handle_query(request: QueryRequest):
             threshold=request.threshold
         )
 
-        answer = generator.generate_answer(request.query, final_chunks)
-
         end_time = time.time()
+
+        # Step 4: Generation
+        answer = generator.generate_answer(request.query, final_chunks)
 
         return QueryResponse(
             query=request.query,
