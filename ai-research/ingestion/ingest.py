@@ -1,15 +1,11 @@
-import sys
 import os
-import chromadb
+import sys
 from dotenv import load_dotenv
 from ingestion.parser import parse_pdf_slice
 from ingestion.chunker import chunk_pages
-from ingestion.embedder import LocalEmbedder
+from ingestion.indexer import build_indexes
 
 load_dotenv()
-
-CHROMA_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
-MASTER_COLLECTION = "master_docs"
 
 def run_ingestion(pdf_path: str):
     print(f"📖 Parsing PDF: {pdf_path}...")
@@ -19,27 +15,8 @@ def run_ingestion(pdf_path: str):
     chunks = chunk_pages(pages)
     print(f"Generated {len(chunks)} chunks.")
 
-    print("🧠 Generating local embeddings...")
-    embedder = LocalEmbedder()
-    texts = [c["text"] for c in chunks]
-    embeddings = embedder.embed_texts(texts)
-
-    print(f"💾 Storing in ChromaDB (Collection: '{MASTER_COLLECTION}')...")
-    client = chromadb.PersistentClient(path=CHROMA_DIR)
-
-    # Only one master collection will hold all data
-    collection = client.get_or_create_collection(name=MASTER_COLLECTION)
-
-    ids = [c["chunk_id"] for c in chunks]
-    metadatas = [c["metadata"] for c in chunks]
-
-    collection.upsert(
-        ids=ids,
-        documents=texts,
-        embeddings=embeddings,
-        metadatas=metadatas
-    )
-    print(f"✅ Successfully ingested {len(chunks)} chunks into '{MASTER_COLLECTION}'!")
+    build_indexes(chunks)
+    print("✅ Entire ingestion pipeline completed successfully!")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
