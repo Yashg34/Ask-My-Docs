@@ -6,38 +6,28 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from retrieval.vector_retriever import VectorRetriever
-from retrieval.bm25_retriever import BM25Retriever
-from retrieval.fusion import reciprocal_rank_fusion
-from retrieval.reranker import CrossEncoderReranker
-from generation.generator import Generator
 from ingestion.parser import parse_pdf_slice
 from ingestion.chunker import chunk_pages
 from ingestion.indexer import build_indexes
 
 load_dotenv()
 
-vector_retriever = None
-bm25_retriever = None
-reranker = None
-generator = None
+graph_app = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global vector_retriever, bm25_retriever, reranker, generator
+    global graph_app
+    print("🚀 Starting worker process: Initializing AI Components...")
     
-    print("🚀 Initializing AI Components (Loading models into memory)...")
-    vector_retriever = VectorRetriever()
-    bm25_retriever = BM25Retriever()
-    reranker = CrossEncoderReranker()
-    generator = Generator()
+    from graph.build_graph import app as compiled_graph
+    graph_app = compiled_graph
+    
     print("✅ All components loaded successfully!")
-    
-    yield  
-    
+    yield 
     print("🛑 Shutting down AI components...")
 
-app = FastAPI(title="Ask My Docs - Phase 2 (Hybrid & Rerank)", lifespan=lifespan)
+# Pass the lifespan context manager to FastAPI
+app = FastAPI(title="Ask My Docs - Phase 3 (Agentic RAG)", lifespan=lifespan)
 
 class QueryRequest(BaseModel):
     query: str
@@ -53,7 +43,7 @@ class QueryResponse(BaseModel):
 
 @app.get("/health")
 def health():
-    return {"status": "Phase 2 Pipeline running smoothly"}
+    return {"status": "Phase 3 LangGraph Pipeline running smoothly"}
 
 @app.post("/ingest")
 def upload_and_ingest(file: UploadFile = File(...)):
@@ -75,9 +65,10 @@ def upload_and_ingest(file: UploadFile = File(...)):
         
         build_indexes(chunks)
         
-        # This will dynamically reload the BM25 index after new ingestion
-        global bm25_retriever
-        bm25_retriever = BM25Retriever()
+        # Dynamically import and reload the BM25 index in the retriever node after new ingestion
+        import nodes.retriever_node as retriever_node
+        from retrieval.bm25_retriever import BM25Retriever
+        retriever_node.bm25_retriever = BM25Retriever()
         
         return {"message": f"✅ Successfully ingested '{file.filename}' into Vector & BM25 Indexes!"}
     except Exception as e:
@@ -91,34 +82,30 @@ def handle_query(request: QueryRequest):
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
+    if graph_app is None:
+        raise HTTPException(status_code=503, detail="AI models are still loading, please try again in a moment.")
+
     start_time = time.time()
 
     try:
-        # Step 1: Retrieval
-        vector_results = vector_retriever.retrieve(request.query, top_k=request.top_k)
-        bm25_results = bm25_retriever.retrieve(request.query, top_k=request.top_k)
+        initial_state = {
+            "query": request.query,
+            "top_k": request.top_k,
+            "top_n": request.top_n,
+            "threshold": request.threshold,
+            "revision_count": 0  
+        }
 
-        # Step 2: Fusion
-        fused_candidates = reciprocal_rank_fusion(vector_results, bm25_results)
-
-        # Step 3: Reranking
-        final_chunks = reranker.rerank(
-            query=request.query, 
-            candidates=fused_candidates, 
-            top_n=request.top_n, 
-            threshold=request.threshold
-        )
+        # Use the globally loaded graph_app
+        final_state = graph_app.invoke(initial_state)
 
         end_time = time.time()
 
-        # Step 4: Generation
-        answer = generator.generate_answer(request.query, final_chunks)
-
         return QueryResponse(
             query=request.query,
-            answer=answer,
+            answer=final_state.get("draft_answer", "No answer generated."),
             latency_seconds=round(end_time - start_time, 2),
-            retrieved_chunks=final_chunks
+            retrieved_chunks=final_state.get("retrieved_chunks", [])
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

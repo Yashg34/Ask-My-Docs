@@ -1,5 +1,8 @@
 import math
+from dotenv import load_dotenv
 from sentence_transformers import CrossEncoder
+
+load_dotenv()
 
 class CrossEncoderReranker:
     def __init__(self, model_name="cross-encoder/ms-marco-MiniLM-L-6-v2"):

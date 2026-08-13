@@ -1,5 +1,4 @@
 import os
-from typing import List, Dict
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -23,12 +22,8 @@ class Generator:
 
         self.chain = self.prompt | self.model | StrOutputParser()
 
-    def generate_answer(self, query: str, chunks: List[Dict]) -> str:
-        context_str = ""
-        for c in chunks:
-            context_str += f"\n--- CHUNK ID: {c['chunk_id']} (Page {c['metadata']['page']}) ---\n{c['text']}\n"
-
+    def generate_answer(self, query: str, context: str) -> str:
         return self.chain.invoke({
-            "context": context_str,
+            "context": context,
             "query": query
         })

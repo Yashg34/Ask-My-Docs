@@ -1,0 +1,65 @@
+from langgraph.graph import StateGraph, END
+from graph.state import GraphState
+from nodes.retriever_node import retrieve_documents
+from nodes.reranker_node import rerank_documents
+from nodes.context_assembler import assemble_context
+from nodes.generator_node import generate_answer
+from nodes.citation_validator import validate_citations 
+
+# Routing Logic
+def route_validation(state: GraphState):
+    if state.get("is_valid"):
+        print("✅ Graph Routing: Answer is valid. Ending process.")
+        return END
+    
+    if state["revision_count"] >= 3:
+        print("🛑 Graph Routing: Revision cap hit! Forcing stop to prevent infinite loops.")
+        return END
+        
+    print("🔄 Graph Routing: Validation failed. Routing back to Generator...")
+    return "generator"
+
+# Construct the Graph
+workflow = StateGraph(GraphState)
+
+# Add Nodes
+workflow.add_node("retriever", retrieve_documents)
+workflow.add_node("reranker", rerank_documents)
+workflow.add_node("assembler", assemble_context)
+workflow.add_node("generator", generate_answer)
+workflow.add_node("validator", validate_citations)
+
+# Define the straight-line flow
+workflow.set_entry_point("retriever")
+workflow.add_edge("retriever", "reranker")
+workflow.add_edge("reranker", "assembler")
+workflow.add_edge("assembler", "generator")
+workflow.add_edge("generator", "validator")
+
+# Add the Conditional Loop
+workflow.add_conditional_edges(
+    "validator",
+    route_validation,
+    {
+        END: END,
+        "generator": "generator"
+    }
+)
+
+# Compile the Graph
+app = workflow.compile()
+
+
+# To print the graph visually using mermaid
+if __name__ == "__main__":
+    try:
+        image_data = app.get_graph().draw_mermaid_png()
+        
+        image_path = "langgraph_architecture.png"
+        with open(image_path, "wb") as f:
+            f.write(image_data)
+            
+        print(f"📸 Success! Graph architecture image saved as '{image_path}'")
+    except Exception as e:
+        print(f"❌ Failed to save graph image: {e}")
+        print("Tip: Ensure you have an active internet connection as draw_mermaid_png() uses an external API by default.")

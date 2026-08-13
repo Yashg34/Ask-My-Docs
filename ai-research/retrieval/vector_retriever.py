@@ -1,7 +1,10 @@
 import os
 import chromadb
+from dotenv import load_dotenv
 from typing import List, Dict
 from ingestion.embedder import LocalEmbedder
+
+load_dotenv()
 
 class VectorRetriever:
     def __init__(self, collection_name: str = "master_docs"):
