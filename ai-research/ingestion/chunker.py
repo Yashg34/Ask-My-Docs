@@ -1,35 +1,29 @@
-from typing import List, Dict
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+import uuid
 
-def chunk_pages(pages: List[Dict], chunk_size: int = 1000, chunk_overlap: int = 150) -> List[Dict]:
-    """
-    Splits page text into overlapping chunks while preserving section/page metadata.
-    """
+def chunk_pages(pages, user_id: str, document_id: str):
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=100,
+        length_function=len
+    )
+    
     chunks = []
-    chunk_counter = 0
-
+    
     for page in pages:
-        text = page["text"]
-        page_num = page["page_number"]
-        doc_name = page["document_name"]
+        splits = text_splitter.split_text(page["text"])
         
-        start = 0
-        while start < len(text):
-            end = start + chunk_size
-            chunk_text = text[start:end]
-            
-            chunk_id = f"{doc_name}:p{page_num}:c{chunk_counter}"
+        for split in splits:
+            chunk_id = f"{document_id}_{uuid.uuid4().hex[:8]}"
             
             chunks.append({
                 "chunk_id": chunk_id,
-                "text": chunk_text,
+                "text": split,
                 "metadata": {
-                    "chunk_id": chunk_id,
-                    "document": doc_name,
-                    "page": page_num
+                    "page": page["page_number"],
+                    "user_id": user_id,         
+                    "document_id": document_id
                 }
             })
             
-            chunk_counter += 1
-            start += (chunk_size - chunk_overlap)
-
     return chunks

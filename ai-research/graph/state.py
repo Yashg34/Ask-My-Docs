@@ -1,11 +1,17 @@
 from typing import TypedDict, List, Dict, Any, Optional
 
+from httpcore import request
+
 class GraphState(TypedDict):
     # Initial request parameters
     query: str
     top_k: int
     top_n: int
     threshold: float
+
+    # User and document context
+    user_id: str              
+    document_id: str
     
     # Retrieved data
     retrieved_chunks: List[Dict[str, Any]]

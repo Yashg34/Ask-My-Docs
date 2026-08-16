@@ -13,7 +13,7 @@ class VectorRetriever:
         self.collection = self.client.get_or_create_collection(name=collection_name)
         self.embedder = LocalEmbedder()
 
-    def retrieve(self, query: str, top_k: int = 5) -> List[Dict]:
+    def retrieve(self, query: str, top_k: int = 5, where_filter: dict = None) -> List[Dict]:
         if self.collection.count() == 0:
             return []
         
@@ -21,7 +21,8 @@ class VectorRetriever:
         
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=top_k
+            n_results=top_k,
+            where=where_filter 
         )
 
         retrieved_chunks = []

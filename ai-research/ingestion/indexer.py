@@ -31,26 +31,41 @@ def build_indexes(chunks):
     collection.upsert(
         ids=ids,
         documents=texts,
-
         embeddings=embeddings,
         metadatas=metadatas
     )
     print("✅ Vector indexing complete!")
 
     
-    print("🔤 Building BM25 Keyword Index...")
-    tokenized_corpus = [text.lower().split() for text in texts]
+    print("🔤 Updating BM25 Keyword Index...")
     
+    #  Check if previous BM25 data exists to prevent overwriting
+    all_chunks = []
+    if os.path.exists(BM25_INDEX_PATH):
+        try:
+            with open(BM25_INDEX_PATH, "rb") as f:
+                existing_data = pickle.load(f)
+                all_chunks = existing_data.get("chunks", [])
+                print(f"🔄 Loaded {len(all_chunks)} existing chunks from BM25 index.")
+        except Exception as e:
+            print(f"⚠️ Could not load existing BM25 index, starting fresh. Error: {e}")
+
+    # Combine old chunks with the new ones
+    all_chunks.extend(chunks)
+
+    # Rebuild the BM25 model with the complete dataset
+    all_texts = [c["text"] for c in all_chunks]
+    tokenized_corpus = [text.lower().split() for text in all_texts]
     bm25 = BM25Okapi(tokenized_corpus)
 
-    # Save the BM25 model and the chunk data together to a pickle file
-    print(f"💾 Saving BM25 index to {BM25_INDEX_PATH}...")
+    # Save the updated BM25 model and the combined chunk data
+    print(f"💾 Saving BM25 index with total {len(all_chunks)} chunks to {BM25_INDEX_PATH}...")
     os.makedirs("data", exist_ok=True)
     
     with open(BM25_INDEX_PATH, "wb") as f:
         pickle.dump({
             "bm25": bm25, 
-            "chunks": chunks  
+            "chunks": all_chunks  
         }, f)
     
     print("✅ BM25 indexing complete!")

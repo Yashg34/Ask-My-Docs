@@ -9,7 +9,7 @@ def assemble_context(state: GraphState):
         
     formatted_text = ""
     for chunk in chunks:
-        chunk_id = chunk["metadata"]["chunk_id"]
+        chunk_id = chunk.get("chunk_id", "Unknown_ID")        
         text = chunk["text"]
         formatted_text += f"[{chunk_id}]\n{text}\n\n"
         
