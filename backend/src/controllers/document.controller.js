@@ -38,7 +38,7 @@ exports.uploadDocument = async (req, res) => {
             const updatedDoc = await Document.findByIdAndUpdate(
                 newDoc._id, 
                 { status: 'COMPLETED' },
-                { new: true }
+                { returnDocument: 'after' }
             );
             
             // 5. Send the final success response to the frontend

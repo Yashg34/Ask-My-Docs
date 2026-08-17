@@ -5,13 +5,17 @@ llm_generator = Generator()
 
 def generate_answer(state: GraphState):
     rev_count = state.get("revision_count", 0)
-    print(f"✍️ [Node: Generator] Drafting answer (Attempt: {rev_count + 1})...")
+    print(f"[Node: Generator] Drafting answer (Attempt: {rev_count + 1})...")
     
     context = state.get("formatted_context", "")
     
     if not context.strip():
         return {
-            "draft_answer": "I do not have sufficient evidence in the provided documents to answer this question.",
+            "draft_answer": (
+                "I couldn't find any relevant information in the provided documents to answer this question. "
+                "I am specifically designed to assist you based strictly on the uploaded documentation. "
+                "Could you please rephrase or ask something covered in the files?"
+            ),
             "revision_count": rev_count + 1,
             "is_valid": True 
         }

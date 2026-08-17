@@ -8,8 +8,8 @@ vec_retriever = VectorRetriever()
 bm25_retriever = BM25Retriever()
 
 def retrieve_documents(state: GraphState):
-    print("🔍 [Node: Retriever] Fetching candidates via Vector & BM25...")
-    query = state["query"]
+    print("[Node: Retriever] Fetching candidates via Vector & BM25...")
+    query = state["search_query"]
     top_k = state.get("top_k", 10)
     
     user_id = state.get("user_id")

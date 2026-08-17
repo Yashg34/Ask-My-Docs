@@ -1,7 +1,7 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import uuid
 
-def chunk_pages(pages, user_id: str, document_id: str):
+def chunk_pages(pages, user_id: str, document_id: str, document_name: str):
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=100,
@@ -22,7 +22,8 @@ def chunk_pages(pages, user_id: str, document_id: str):
                 "metadata": {
                     "page": page["page_number"],
                     "user_id": user_id,         
-                    "document_id": document_id
+                    "document_id": document_id,
+                    "document_name": document_name
                 }
             })
             

@@ -4,7 +4,7 @@ from retrieval.reranker import CrossEncoderReranker
 reranker = CrossEncoderReranker()
 
 def rerank_documents(state: GraphState):
-    print("⚖️ [Node: Reranker] Filtering noise via Cross-Encoder...")
+    print("[Node: Reranker] Filtering noise via Cross-Encoder...")
     candidates = state["retrieved_chunks"]
     
     final_chunks = reranker.rerank(

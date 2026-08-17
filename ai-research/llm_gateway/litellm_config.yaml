@@ -1,0 +1,46 @@
+model_list:
+  # For simple, fast tasks like Query Rewriting
+  - model_name: cheap-model
+    litellm_params:
+      model: groq/openai/gpt-oss-20b    
+      api_key: os.environ/GROQ_API_KEY
+
+  # For final RAG Generation (needs large context window)
+  - model_name: strong-model
+    litellm_params:
+      model: gemini/gemini-3.6-flash     
+      api_key: os.environ/GEMINI_API_KEY
+
+  # For strict Fact-Checking & JSON/Pydantic Validation
+  - model_name: evaluator-model
+    litellm_params:
+      model: groq/openai/gpt-oss-120b   
+      api_key: os.environ/GROQ_API_KEY
+
+  #   BACKUP MODELS (FALLBACKS)
+
+  # If gpt-oss-20b fails, use Gemini Flash-Lite
+  - model_name: cheap-model-backup
+    litellm_params:
+      model: gemini/gemini-3.1-flash-lite
+      api_key: os.environ/GEMINI_API_KEY
+
+  # If Gemini 3.6 Flash fails, use gpt-oss-120b
+  - model_name: strong-model-backup
+    litellm_params:
+      model: groq/openai/gpt-oss-120b
+      api_key: os.environ/GROQ_API_KEY
+
+  # If gpt-oss-120b fails, use Gemini 3.5 Flash
+  - model_name: evaluator-model-backup
+    litellm_params:
+      model: gemini/gemini-3.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+
+# ROUTING LOGIC
+router_settings:
+  fallbacks:
+    - {"cheap-model": ["cheap-model-backup"]}
+    - {"strong-model": ["strong-model-backup"]}
+    - {"evaluator-model": ["evaluator-model-backup"]}

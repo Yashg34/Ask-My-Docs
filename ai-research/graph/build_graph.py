@@ -5,6 +5,8 @@ from nodes.reranker_node import rerank_documents
 from nodes.context_assembler import assemble_context
 from nodes.generator_node import generate_answer
 from nodes.citation_validator import validate_citations 
+from nodes.query_rewriter import rewrite_query
+from nodes.input_guardrail import check_input_safety
 
 # Routing Logic
 def route_validation(state: GraphState):
@@ -19,6 +21,11 @@ def route_validation(state: GraphState):
     print("🔄 Graph Routing: Validation failed. Routing back to Generator...")
     return "generator"
 
+def guardrail_router(state: GraphState):
+    if state.get("is_safe") is False:
+        return "END"
+    return "rewriter"
+
 # Construct the Graph
 workflow = StateGraph(GraphState)
 
@@ -28,9 +35,20 @@ workflow.add_node("reranker", rerank_documents)
 workflow.add_node("assembler", assemble_context)
 workflow.add_node("generator", generate_answer)
 workflow.add_node("validator", validate_citations)
+workflow.add_node("rewriter", rewrite_query)
+workflow.add_node("guardrail", check_input_safety)
 
 # Define the straight-line flow
-workflow.set_entry_point("retriever")
+workflow.set_entry_point("guardrail")
+workflow.add_conditional_edges(
+    "guardrail",
+    guardrail_router,
+    {
+        "end": END,
+        "rewriter": "rewriter"
+    }
+)
+workflow.add_edge("rewriter", "retriever")
 workflow.add_edge("retriever", "reranker")
 workflow.add_edge("reranker", "assembler")
 workflow.add_edge("assembler", "generator")

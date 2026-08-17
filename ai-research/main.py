@@ -68,7 +68,12 @@ def upload_and_ingest(
     try:
         pages = parse_pdf_slice(file_path)
         
-        chunks = chunk_pages(pages, user_id=user_id, document_id=document_id)
+        chunks = chunk_pages(
+            pages=pages, 
+            user_id=user_id, 
+            document_id=document_id,
+            document_name=file.filename 
+        )
         
         build_indexes(chunks)
         
