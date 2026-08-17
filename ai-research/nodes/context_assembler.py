@@ -1,7 +1,7 @@
 from graph.state import GraphState
 
 def assemble_context(state: GraphState):
-    print("🧩 [Node: Assembler] Formatting chunks for LLM...")
+    print("[Node: Assembler] Formatting chunks for LLM...")
     
     chunks = state.get("retrieved_chunks", [])
     

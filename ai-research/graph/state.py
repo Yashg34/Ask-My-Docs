@@ -10,6 +10,9 @@ class GraphState(TypedDict):
     top_n: int
     threshold: float
 
+    # Initial Routing
+    intent: str
+
     # Guardrails 
     is_safe: bool          
     security_flag: str

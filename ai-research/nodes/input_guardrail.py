@@ -41,5 +41,8 @@ def check_input_safety(state: GraphState):
         return {"is_safe": True, "security_flag": "Passed"}
         
     except Exception as e:
-        print(f"⚠️ Guardrail check failed. Error: {e}")
-        return {"is_safe": True, "security_flag": "Error"}
+        print(f"Guardrail model failed. Failing closed. Error: {e}")
+        return {
+            "is_safe": False, 
+            "safety_feedback": "System safety check is temporarily unavailable. Please try again later."
+        }

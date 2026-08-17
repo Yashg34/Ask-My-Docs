@@ -15,9 +15,10 @@ def retrieve_documents(state: GraphState):
     user_id = state.get("user_id")
     document_id = state.get("document_id")
     
-    where_filter = {"user_id": user_id}
     if document_id:
-        where_filter["document_id"] = document_id
+        where_filter = {"$and": [{"user_id": user_id}, {"document_id": document_id}]}
+    else:
+        where_filter = {"user_id": user_id}
 
     vec_results = vec_retriever.retrieve(query, top_k=top_k, where_filter=where_filter)
     

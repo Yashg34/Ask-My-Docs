@@ -50,5 +50,8 @@ def validate_citations(state: GraphState):
         }
         
     except Exception as e:
-        print(f"⚠️ Validator parsing error. Safely passing answer to prevent crash. Error: {e}")
-        return {"is_valid": True, "validation_feedback": ""}
+        print(f"Validator model failed. Failing closed. Error: {e}")
+        return {
+            "is_valid": False, 
+            "validation_feedback": "Citation validation engine offline. Unable to verify facts."
+        }

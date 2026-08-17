@@ -39,7 +39,6 @@ def build_indexes(chunks):
     
     print("🔤 Updating BM25 Keyword Index...")
     
-    #  Check if previous BM25 data exists to prevent overwriting
     all_chunks = []
     if os.path.exists(BM25_INDEX_PATH):
         try:
@@ -50,10 +49,27 @@ def build_indexes(chunks):
         except Exception as e:
             print(f"⚠️ Could not load existing BM25 index, starting fresh. Error: {e}")
 
-    # Combine old chunks with the new ones
+    
+    incoming_doc_ids = {
+        c["metadata"]["document_id"] 
+        for c in chunks 
+        if "metadata" in c and "document_id" in c["metadata"]
+    }
+
+    if incoming_doc_ids:
+        filtered_chunks = [
+            c for c in all_chunks
+            if c.get("metadata", {}).get("document_id") not in incoming_doc_ids
+        ]
+        
+        removed_count = len(all_chunks) - len(filtered_chunks)
+        if removed_count > 0:
+            print(f"🧹 Removed {removed_count} old chunks for document(s) {incoming_doc_ids} to prevent duplicates.")
+        
+        all_chunks = filtered_chunks
+
     all_chunks.extend(chunks)
 
-    # Rebuild the BM25 model with the complete dataset
     all_texts = [c["text"] for c in all_chunks]
     tokenized_corpus = [text.lower().split() for text in all_texts]
     bm25 = BM25Okapi(tokenized_corpus)
