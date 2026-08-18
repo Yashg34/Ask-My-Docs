@@ -12,7 +12,6 @@ exports.askQuery = async (req, res) => {
         // 1. Prepare the payload for FastAPI
         const payload = {
             query: query,
-            user_id: req.user.id, 
             top_k: 10,
             top_n: 3,
             threshold: 0.05
@@ -24,7 +23,11 @@ exports.askQuery = async (req, res) => {
         }
 
         // 2. Hit the FastAPI /query route
-        const fastApiResponse = await axios.post('http://127.0.0.1:8000/query', payload);
+        const fastApiResponse = await axios.post('http://127.0.0.1:8000/query', payload,{
+            headers: {
+                'x_user_id': req.user.id
+            }
+        });
         const aiData = fastApiResponse.data;
 
         // 3. Save the history in MongoDB (Persistence)

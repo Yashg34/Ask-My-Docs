@@ -23,6 +23,10 @@ const documentSchema = new mongoose.Schema({
     errorMessage: {
         type: String,
         default: ''
+    },
+    jobId: {
+        type: String,
+        default: null
     }
 }, { timestamps: true });
 

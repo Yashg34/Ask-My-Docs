@@ -3,7 +3,7 @@ from generation.generator import Generator
 
 llm_generator = Generator()
 
-def generate_answer(state: GraphState):
+async def generate_answer(state: GraphState):
     rev_count = state.get("revision_count", 0)
     print(f"[Node: Generator] Drafting answer (Attempt: {rev_count + 1})...")
     
@@ -17,7 +17,7 @@ def generate_answer(state: GraphState):
     if feedback:
         query += f"\n\n[CRITICAL FEEDBACK FROM VALIDATOR: {feedback}. Rewrite strictly fixing these errors.]"
         
-    draft = llm_generator.generate_answer(query, context, chat_history)
+    draft = await llm_generator.generate_answer(query, context, chat_history)
     
     return {
         "draft_answer": draft,

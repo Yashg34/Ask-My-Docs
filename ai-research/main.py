@@ -1,8 +1,10 @@
 import os
 import shutil
 import time
+import uuid
+from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Header, BackgroundTasks
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -31,7 +33,6 @@ app = FastAPI(title="Ask My Docs - Phase 3 (Agentic RAG)", lifespan=lifespan)
 
 class QueryRequest(BaseModel):
     query: str
-    user_id: str         
     document_id: str = None
     top_k: int = 10      # First-stage retrieval (Pulls 10 from Vector, 10 from BM25)
     top_n: int = 3       # Post-reranking (Sends only the top 3 best chunks to Gemini)
@@ -44,29 +45,15 @@ class QueryResponse(BaseModel):
     latency_seconds: float
     retrieved_chunks: list
 
+job_store = {}
+
 @app.get("/health")
 def health():
     return {"status": "Phase 3 LangGraph Pipeline running smoothly"}
 
-@app.post("/ingest")
-def upload_and_ingest(
-    file: UploadFile = File(...),
-    user_id: str = Form(...),      
-    document_id: str = Form(...)   
-):
-    if not file.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
-    
-    os.makedirs("data", exist_ok=True)
-    file_path = os.path.join("data", file.filename)
-    
+def process_ingestion(file_path: str, user_id: str, document_id: str, original_filename: str, job_id: str):
     try:
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-        
-    try:
+        print(f"🔄 Starting background ingestion for {original_filename}...")
         start_time = time.time()
         pages = parse_pdf_slice(file_path)
         
@@ -74,7 +61,7 @@ def upload_and_ingest(
             pages=pages, 
             user_id=user_id, 
             document_id=document_id,
-            document_name=file.filename 
+            document_name=original_filename 
         )
         
         build_indexes(chunks)
@@ -84,15 +71,64 @@ def upload_and_ingest(
         retriever_node.bm25_retriever = BM25Retriever()
 
         end_time = time.time()
-        return {"message": f"✅ Successfully ingested '{file.filename}'!", "latency_seconds" : round(end_time - start_time, 2)}
+        print(f"✅ Successfully ingested '{original_filename}' in {round(end_time - start_time, 2)}s!")
+        job_store[job_id] = {"status": "COMPLETED", "message": f"Successfully ingested in {round(end_time - start_time, 2)}s"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ingestion pipeline failed: {str(e)}")
+        print(f"❌ Ingestion pipeline failed for {original_filename}: {str(e)}")
+        job_store[job_id] = {"status": "FAILED", "errorMessage": str(e)}
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
 
+@app.get("/ingest/status/{job_id}")
+def get_ingest_status(job_id: str):
+    job = job_store.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@app.post("/ingest")
+async def upload_and_ingest(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    document_id: str = Form(...),
+    x_user_id: str = Header(...)
+):
+    user_id = x_user_id
+    safe_name = Path(file.filename).name
+    if not safe_name.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+        
+    magic_bytes = file.file.read(4)
+    file.file.seek(0)
+    if magic_bytes != b"%PDF":
+        raise HTTPException(status_code=400, detail="Invalid file format. Not a true PDF.")
+    
+    job_id = uuid.uuid4().hex
+    job_store[job_id] = {"status": "PROCESSING", "message": "Ingestion started..."}
+    os.makedirs("data", exist_ok=True)
+    file_path = os.path.join("data", f"{job_id}_{safe_name}")
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
+        
+    background_tasks.add_task(
+        process_ingestion, 
+        file_path=file_path, 
+        user_id=user_id, 
+        document_id=document_id, 
+        original_filename=file.filename,
+        job_id=job_id
+    )
+    
+    return {"job_id": job_id, "status": "queued", "message": f"Ingestion for '{file.filename}' has been queued."}
+
 @app.post("/query", response_model=QueryResponse)
-def handle_query(request: QueryRequest):
+async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
+    user_id = x_user_id
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
@@ -104,7 +140,7 @@ def handle_query(request: QueryRequest):
     try:
         initial_state = {
             "query": request.query,
-            "user_id": request.user_id,
+            "user_id": user_id,
             "document_id": request.document_id,
             "chat_history": request.chat_history,
             "top_k": request.top_k,
@@ -114,7 +150,7 @@ def handle_query(request: QueryRequest):
         }
 
         # Use the globally loaded graph_app
-        final_state = graph_app.invoke(initial_state)
+        final_state = await graph_app.ainvoke(initial_state)
 
         end_time = time.time()
 

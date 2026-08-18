@@ -1,17 +1,30 @@
 import yaml
+import re
 from graph.state import GraphState
 from llm_gateway.router import llm_router
 from pydantic import BaseModel, Field
+from nodes.utils import parse_structured
 
 class ValidationResult(BaseModel):
     is_valid: bool = Field(description="True if ALL claims are supported by their specific citations. False if there are hallucinations or missing citations.")
     feedback: str = Field(description="If invalid, provide specific instructions on what to fix. If valid, return empty string.")
 
-def validate_citations(state: GraphState):
+async def validate_citations(state: GraphState):
     print("[Node: Validator] Cross-checking citations using YAML guardrails...")
     
     if not state.get("formatted_context", "").strip():
         return {"is_valid": True, "validation_feedback": ""}
+        
+    draft_answer = state.get("draft_answer", "")
+    
+    # Deterministic Structural Check
+    # If the draft answer has no citations in brackets, fail immediately.
+    if not re.search(r"\[.+?\]", draft_answer):
+        print("   -> Validator Decision: ❌ FAIL (Deterministic Check: No citations found)")
+        return {
+            "is_valid": False,
+            "validation_feedback": "You failed to include any inline citations. You MUST cite your sources using the [Document Name, Page X] format."
+        }
         
     with open("guardrails/output_guardrails.yaml", "r") as file:
         config = yaml.safe_load(file)
@@ -29,7 +42,7 @@ def validate_citations(state: GraphState):
     """
     
     try:
-        response = llm_router.completion(
+        response = await llm_router.acompletion(
             model="evaluator-model",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
@@ -37,7 +50,7 @@ def validate_citations(state: GraphState):
         )
         
         result_text = response.choices[0].message.content
-        result = ValidationResult.model_validate_json(result_text)
+        result = parse_structured(ValidationResult, result_text)
         
         print(f"   -> Validator Decision: {'✅ PASS' if result.is_valid else '❌ FAIL'}")
         

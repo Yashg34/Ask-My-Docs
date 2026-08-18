@@ -1,9 +1,7 @@
 import os
 import pickle
-import chromadb
-import concurrent.futures
 from rank_bm25 import BM25Okapi
-from ingestion.embedder import LocalEmbedder
+from ingestion.embedder import get_embedder, get_chroma_client
 
 CHROMA_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
 MASTER_COLLECTION = "master_docs"
@@ -13,11 +11,11 @@ BM25_INDEX_PATH = os.path.join("data", "bm25_index.pkl")
 def _update_vector_db(chunks):
     """Helper function to run Vector DB indexing."""
     print("[Vector DB] Generating local embeddings...")
-    embedder = LocalEmbedder()
+    embedder = get_embedder()
     texts = [c["text"] for c in chunks]
     embeddings = embedder.embed_texts(texts)
 
-    client = chromadb.PersistentClient(path=CHROMA_DIR)
+    client = get_chroma_client()
     collection = client.get_or_create_collection(name=MASTER_COLLECTION)
 
     ids = [c["chunk_id"] for c in chunks]
@@ -91,19 +89,13 @@ def build_indexes(chunks):
         print("⚠️ No chunks provided to indexer.")
         return
 
-    print(f"Starting parallel ingestion for {len(chunks)} chunks...")
+    print(f"Starting sequential ingestion for {len(chunks)} chunks...")
 
-    # Run both indexing tasks at the same time using ThreadPoolExecutor
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        future_vector = executor.submit(_update_vector_db, chunks)
-        future_bm25 = executor.submit(_update_bm25_index, chunks)
-        
-        # Wait for both tasks to complete and catch any errors
-        try:
-            future_vector.result()
-            future_bm25.result()
-        except Exception as e:
-            print(f"Error during parallel indexing: {e}")
-            raise e
+    try:
+        _update_vector_db(chunks)
+        _update_bm25_index(chunks)
+    except Exception as e:
+        print(f"Error during sequential indexing: {e}")
+        raise e
 
-    print("Both Vector and BM25 indexing completed successfully in parallel!")
+    print("Both Vector and BM25 indexing completed successfully sequentially!")

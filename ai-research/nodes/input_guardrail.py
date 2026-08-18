@@ -2,12 +2,13 @@ import yaml
 from graph.state import GraphState
 from llm_gateway.router import llm_router
 from pydantic import BaseModel, Field
+from nodes.utils import parse_structured
 
 class SecurityCheck(BaseModel):
     is_safe: bool = Field(description="True if safe, False if malicious.")
     reason: str = Field(description="Brief reason for the decision.")
 
-def check_input_safety(state: GraphState):
+async def check_input_safety(state: GraphState):
     print("[Node: Guardrail] Scanning input based on YAML policies...")
     
     with open("guardrails/input_guardrails.yaml", "r") as file:
@@ -19,7 +20,7 @@ def check_input_safety(state: GraphState):
     prompt = f"{policy['system_prompt']}\n\nUser Input: \"{query}\""
 
     try:
-        response = llm_router.completion(
+        response = await llm_router.acompletion(
             model="evaluator-model",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
@@ -27,7 +28,7 @@ def check_input_safety(state: GraphState):
         )
         
         result_text = response.choices[0].message.content
-        result = SecurityCheck.model_validate_json(result_text)
+        result = parse_structured(SecurityCheck, result_text)
         
         if not result.is_safe:
             print(f"🚨 SECURITY ALERT: {result.reason}")
@@ -44,5 +45,6 @@ def check_input_safety(state: GraphState):
         print(f"Guardrail model failed. Failing closed. Error: {e}")
         return {
             "is_safe": False, 
-            "safety_feedback": "System safety check is temporarily unavailable. Please try again later."
+            "security_flag": "guardrail_unavailable",
+            "draft_answer": "Our safety check is temporarily unavailable. Please try again shortly."
         }

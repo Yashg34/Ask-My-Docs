@@ -9,6 +9,7 @@ from nodes.query_rewriter import rewrite_query
 from nodes.input_guardrail import check_input_safety
 from nodes.intent_routing import route_intent
 from nodes.summarise import summarize_document
+from nodes.context_safety_guardrail import check_context_safety
 
 # Routing Logic
 def route_validation(state: GraphState):
@@ -27,6 +28,11 @@ def guardrail_router(state: GraphState):
     if state.get("is_safe") is False:
         return END
     return "rewriter"
+
+def route_context_safety(state: GraphState):
+    if state.get("is_safe") is False:
+        return END
+    return "generator"
 
 def intent_router(state: GraphState):
     if state.get("intent") == "GREETING":
@@ -61,6 +67,7 @@ workflow.add_node("rewriter", rewrite_query)
 workflow.add_node("guardrail", check_input_safety)
 workflow.add_node("router", route_intent)
 workflow.add_node("summarize", summarize_document)
+workflow.add_node("context_guardrail", check_context_safety)
 
 # Define the straight-line flow
 workflow.set_entry_point("router")
@@ -91,9 +98,16 @@ workflow.add_conditional_edges(
         END: END               
     }
 )
-workflow.add_edge("retriever", "reranker")
 workflow.add_edge("reranker", "assembler")
-workflow.add_edge("assembler", "generator")
+workflow.add_edge("assembler", "context_guardrail")
+workflow.add_conditional_edges(
+    "context_guardrail",
+    route_context_safety,
+    {
+        END: END,
+        "generator": "generator"
+    }
+)
 workflow.add_edge("generator", "validator")
 
 # Add the Conditional Loop

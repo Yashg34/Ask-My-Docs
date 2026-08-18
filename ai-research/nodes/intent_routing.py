@@ -2,6 +2,7 @@ from typing import Literal
 from llm_gateway.router import llm_router
 from graph.state import GraphState
 from pydantic import BaseModel, Field
+from nodes.utils import parse_structured
 
 
 class IntentResult(BaseModel):
@@ -14,7 +15,7 @@ class IntentResult(BaseModel):
     )
 
 
-def route_intent(state: GraphState):
+async def route_intent(state: GraphState):
     print("[Node: Router] Detecting user intent using cheap-model...")
     query = state["query"]
 
@@ -29,7 +30,7 @@ def route_intent(state: GraphState):
     """
 
     try:
-        response = llm_router.completion(
+        response = await llm_router.acompletion(
             model="cheap-model",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
@@ -37,7 +38,7 @@ def route_intent(state: GraphState):
         )
 
         result_text = response.choices[0].message.content
-        result = IntentResult.model_validate_json(result_text)
+        result = parse_structured(IntentResult, result_text)
 
         print(f"   -> Detected Intent: {result.intent}")
 

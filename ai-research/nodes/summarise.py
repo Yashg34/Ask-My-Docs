@@ -1,4 +1,4 @@
-import concurrent.futures
+import asyncio
 from llm_gateway.router import llm_router
 from graph.state import GraphState
 from retrieval.vector_retriever import VectorRetriever
@@ -7,7 +7,7 @@ vec_retriever = VectorRetriever()
 
 CHUNK_BATCH_SIZE = 40
 
-def summarize_batch(batch_text: str, batch_index: int) -> str:
+async def summarize_batch(batch_text: str, batch_index: int) -> str:
     """Map Phase: Summarize a specific chunk batch in parallel"""
     print(f"      [Map] Summarizing batch {batch_index}...")
     
@@ -20,7 +20,7 @@ def summarize_batch(batch_text: str, batch_index: int) -> str:
     """
     
     try:
-        response = llm_router.completion(
+        response = await llm_router.acompletion(
             model="cheap-model", 
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1
@@ -30,7 +30,7 @@ def summarize_batch(batch_text: str, batch_index: int) -> str:
         print(f"⚠️ Error in mapping batch {batch_index}: {e}")
         return ""
 
-def summarize_document(state: GraphState):
+async def summarize_document(state: GraphState):
     print("📝 [Node: Summarizer] Generating Map-Reduce Document Summary...")
 
     user_id = state["user_id"]
@@ -77,16 +77,11 @@ def summarize_document(state: GraphState):
 
     batch_summaries = []
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_batch = {
-            executor.submit(summarize_batch, batch_text, i + 1): i 
-            for i, batch_text in enumerate(batches)
-        }
-        
-        for future in concurrent.futures.as_completed(future_to_batch):
-            result = future.result()
-            if result:
-                batch_summaries.append(result)
+    tasks = [summarize_batch(batch_text, i + 1) for i, batch_text in enumerate(batches)]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, str) and result:
+            batch_summaries.append(result)
 
     print("   -> 📉 Reduce Phase: Combining mini-summaries into Final Master Summary...")
     
@@ -103,7 +98,7 @@ def summarize_document(state: GraphState):
     """
 
     try:
-        response = llm_router.completion(
+        response = await llm_router.acompletion(
             model="strong-model",
             messages=[{"role": "user", "content": reduce_prompt}],
             temperature=0.3

@@ -19,4 +19,7 @@ const upload = multer({
 // The route is protected by Auth, and Multer looks for a field named "file"
 router.post('/upload', authMiddleware, upload.single('file'), documentController.uploadDocument);
 
+// Route for the frontend to poll document status
+router.get('/:id/status', authMiddleware, documentController.checkDocumentStatus);
+
 module.exports = router;

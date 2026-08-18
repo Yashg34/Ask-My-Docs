@@ -1,17 +1,14 @@
-import os
-import chromadb
 from dotenv import load_dotenv
 from typing import List, Dict
-from ingestion.embedder import LocalEmbedder
+from ingestion.embedder import get_embedder, get_chroma_client
 
 load_dotenv()
 
 class VectorRetriever:
     def __init__(self, collection_name: str = "master_docs"):
-        chroma_dir = os.getenv("CHROMA_PERSIST_DIR", "./chroma_db")
-        self.client = chromadb.PersistentClient(path=chroma_dir)
+        self.client = get_chroma_client()
         self.collection = self.client.get_or_create_collection(name=collection_name)
-        self.embedder = LocalEmbedder()
+        self.embedder = get_embedder()
 
     def retrieve(self, query: str, top_k: int = 5, where_filter: dict = None) -> List[Dict]:
         if self.collection.count() == 0:

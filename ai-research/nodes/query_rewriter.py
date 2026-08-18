@@ -1,7 +1,7 @@
 from graph.state import GraphState
 from llm_gateway.router import llm_router
 
-def rewrite_query(state: GraphState):
+async def rewrite_query(state: GraphState):
     print("[Node: Rewriter] Resolving context & extracting keywords...")
     original_query = state["query"]
     chat_history = state.get("chat_history", [])
@@ -32,7 +32,7 @@ def rewrite_query(state: GraphState):
     ]
     
     try:
-        response = llm_router.completion(
+        response = await llm_router.acompletion(
             model="cheap-model", 
             messages=messages,
             temperature=0.1
