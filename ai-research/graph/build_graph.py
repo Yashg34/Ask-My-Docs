@@ -38,6 +38,16 @@ def intent_router(state: GraphState):
     print("📚 Graph Routing: Intent is RAG. Proceeding to Input Guardrail.")
     return "guardrail"
 
+def route_after_retrieval(state: GraphState):
+    chunks = state.get("retrieved_chunks", [])
+    
+    if not chunks:
+        print("🔀 [Router] No chunks found! Bypassing generation and ending.")
+        return END
+        
+    print("🔀 [Router] Chunks found. Proceeding to Generation.")
+    return "reranker"
+
 # Construct the Graph
 workflow = StateGraph(GraphState)
 
@@ -73,6 +83,14 @@ workflow.add_conditional_edges(
     }
 )
 workflow.add_edge("rewriter", "retriever")
+workflow.add_conditional_edges(
+    "retriever",            
+    route_after_retrieval,  
+    {
+        "reranker": "reranker", 
+        END: END               
+    }
+)
 workflow.add_edge("retriever", "reranker")
 workflow.add_edge("reranker", "assembler")
 workflow.add_edge("assembler", "generator")

@@ -6,8 +6,13 @@ class LocalEmbedder:
         print("⏳ Loading Embedding model (this might take a few seconds)...")
         self.model = SentenceTransformer(model_name)
 
-    def embed_texts(self, texts: List[str]) -> List[List[float]]:
-        embeddings = self.model.encode(texts, convert_to_numpy=True)
+    def embed_texts(self, texts: List[str], batch_size: int = 64) -> List[List[float]]:
+        embeddings = self.model.encode(
+            texts, 
+            batch_size=batch_size, 
+            convert_to_numpy=True,
+            show_progress_bar=True  
+        )
         return embeddings.tolist()
 
     def embed_query(self, text: str) -> List[float]:

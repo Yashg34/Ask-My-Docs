@@ -10,11 +10,23 @@ class Generator:
         "   - Format your citations EXACTLY like this: [document_name, Page X] (extracting the document name and page number from the provided chunk metadata).\n"
         "3. OUT OF SCOPE: If the supplied context does not contain sufficient evidence to answer, do not guess. Politely explain that you are designed to answer questions strictly based on the uploaded files."
     )
-    def generate_answer(self, query: str, context: str) -> str:        
+    def generate_answer(self, query: str, context: str, chat_history: list = None) -> str:        
         messages = [
-            {"role": "system", "content": self.system_prompt},
-            {"role": "user", "content": f"CONTEXT:\n{context}\n\nQUESTION: {query}\n\nANSWER:"}
+            {"role": "system", "content": self.system_prompt}
         ]
+
+        for msg in chat_history[-10:]:
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
+
+        current_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {query}\n\nANSWER:"
+        
+        messages.append({
+            "role": "user", 
+            "content": current_prompt
+        })
 
         response = llm_router.completion(
             model="strong-model",

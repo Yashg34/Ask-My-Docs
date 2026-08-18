@@ -38,4 +38,15 @@ def retrieve_documents(state: GraphState):
     bm_results = bm_results[:top_k]
     fused = reciprocal_rank_fusion(vec_results, bm_results)
     
+    rev_count = state.get("revision_count", 0)
+
+    if not fused:
+        return {
+            "retrieved_chunks": [],
+            "formatted_context": "",
+            "draft_answer": "I couldn't find any relevant information in your documents to answer this question. Could you please rephrase or check if the document contains this info?",
+            "is_valid": True,
+            "revision_count": rev_count + 1 
+        }
+    
     return {"retrieved_chunks": fused}

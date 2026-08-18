@@ -36,6 +36,7 @@ class QueryRequest(BaseModel):
     top_k: int = 10      # First-stage retrieval (Pulls 10 from Vector, 10 from BM25)
     top_n: int = 3       # Post-reranking (Sends only the top 3 best chunks to Gemini)
     threshold: float = 0.05
+    chat_history: list = []
 
 class QueryResponse(BaseModel):
     query: str
@@ -66,6 +67,7 @@ def upload_and_ingest(
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
         
     try:
+        start_time = time.time()
         pages = parse_pdf_slice(file_path)
         
         chunks = chunk_pages(
@@ -80,8 +82,9 @@ def upload_and_ingest(
         import nodes.retriever_node as retriever_node
         from retrieval.bm25_retriever import BM25Retriever
         retriever_node.bm25_retriever = BM25Retriever()
-        
-        return {"message": f"✅ Successfully ingested '{file.filename}'!"}
+
+        end_time = time.time()
+        return {"message": f"✅ Successfully ingested '{file.filename}'!", "latency_seconds" : round(end_time - start_time, 2)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion pipeline failed: {str(e)}")
     finally:
@@ -103,6 +106,7 @@ def handle_query(request: QueryRequest):
             "query": request.query,
             "user_id": request.user_id,
             "document_id": request.document_id,
+            "chat_history": request.chat_history,
             "top_k": request.top_k,
             "top_n": request.top_n,
             "threshold": request.threshold,

@@ -9,6 +9,7 @@ class GraphState(TypedDict):
     top_k: int
     top_n: int
     threshold: float
+    chat_history: List[Dict[str, str]]
 
     # Initial Routing
     intent: str

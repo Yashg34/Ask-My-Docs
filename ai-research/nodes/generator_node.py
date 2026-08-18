@@ -8,17 +8,8 @@ def generate_answer(state: GraphState):
     print(f"[Node: Generator] Drafting answer (Attempt: {rev_count + 1})...")
     
     context = state.get("formatted_context", "")
+    chat_history = state.get("chat_history", [])
     
-    if not context.strip():
-        return {
-            "draft_answer": (
-                "I couldn't find any relevant information in the provided documents to answer this question. "
-                "I am specifically designed to assist you based strictly on the uploaded documentation. "
-                "Could you please rephrase or ask something covered in the files?"
-            ),
-            "revision_count": rev_count + 1,
-            "is_valid": True 
-        }
         
     query = state["query"]
     feedback = state.get("validation_feedback", "")
@@ -26,7 +17,7 @@ def generate_answer(state: GraphState):
     if feedback:
         query += f"\n\n[CRITICAL FEEDBACK FROM VALIDATOR: {feedback}. Rewrite strictly fixing these errors.]"
         
-    draft = llm_generator.generate_answer(query, context)
+    draft = llm_generator.generate_answer(query, context, chat_history)
     
     return {
         "draft_answer": draft,
