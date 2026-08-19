@@ -20,7 +20,7 @@ def assemble_context(state: GraphState):
         
         formatted_chunk = (
             f"--- CHUNK ID: {chunk_id} ---\n"
-            f"Source: {doc_name}, Page: {page}\n"
+            f"Source: [{doc_name}, Page {page}]\n"
             f"Content: {chunk.get('text', '')}\n"
             f"---------------------------\n"
         )

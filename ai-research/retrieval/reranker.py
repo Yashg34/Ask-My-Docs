@@ -34,8 +34,9 @@ class CrossEncoderReranker:
         # Apply the threshold gate and slice the top_n
         final_results = []
         for item in scored_candidates:
-            if item["score"] >= threshold:
-                final_results.append(item["chunk"])
+            if item["score"] < threshold:
+                break
+            final_results.append(item["chunk"])
             
             if len(final_results) >= top_n:
                 break

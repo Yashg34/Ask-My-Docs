@@ -8,16 +8,14 @@ class SecurityCheck(BaseModel):
     is_safe: bool = Field(description="True if safe, False if malicious.")
     reason: str = Field(description="Brief reason for the decision.")
 
+with open("guardrails/input_guardrails.yaml", "r") as f:
+    _INPUT_POLICY = yaml.safe_load(f)["policies"][0]
+
 async def check_input_safety(state: GraphState):
     print("[Node: Guardrail] Scanning input based on YAML policies...")
     
-    with open("guardrails/input_guardrails.yaml", "r") as file:
-        config = yaml.safe_load(file)
-        
-    policy = config["policies"][0] 
-    
     query = state["query"]
-    prompt = f"{policy['system_prompt']}\n\nUser Input: \"{query}\""
+    prompt = f"{_INPUT_POLICY['system_prompt']}\n\nUser Input: \"{query}\""
 
     try:
         response = await llm_router.acompletion(
@@ -35,7 +33,7 @@ async def check_input_safety(state: GraphState):
             return {
                 "is_safe": False, 
                 "security_flag": result.reason,
-                "draft_answer": policy["rejection_message"]
+                "draft_answer": _INPUT_POLICY["rejection_message"]
             }
             
         print("✅ Input is safe.")

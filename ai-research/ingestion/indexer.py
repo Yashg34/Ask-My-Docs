@@ -30,60 +30,73 @@ def _update_vector_db(chunks):
     print("[Vector DB] Indexing complete!")
 
 
+import tempfile
+from filelock import FileLock
+
 def _update_bm25_index(chunks):
     """Helper function to run BM25 indexing."""
-    print("[BM25] Updating Keyword Index...")
+    if not chunks:
+        return
+        
+    user_id = chunks[0]["metadata"]["user_id"]
+    index_path = os.path.join("data", f"bm25_{user_id}.pkl")
+    lock_path = index_path + ".lock"
     
-    all_chunks = []
-    if os.path.exists(BM25_INDEX_PATH):
-        try:
-            with open(BM25_INDEX_PATH, "rb") as f:
-                existing_data = pickle.load(f)
-                all_chunks = existing_data.get("chunks", [])
-                print(f"🔄 [BM25] Loaded {len(all_chunks)} existing chunks.")
-        except Exception as e:
-            print(f"[BM25] Could not load existing index, starting fresh. Error: {e}")
-
-    # Remove existing chunks for the incoming document IDs (Deduplication)
-    incoming_doc_ids = {
-        c["metadata"]["document_id"] 
-        for c in chunks 
-        if "metadata" in c and "document_id" in c["metadata"]
-    }
-
-    if incoming_doc_ids:
-        filtered_chunks = [
-            c for c in all_chunks
-            if c.get("metadata", {}).get("document_id") not in incoming_doc_ids
-        ]
-        
-        removed_count = len(all_chunks) - len(filtered_chunks)
-        if removed_count > 0:
-            print(f"[BM25] Removed {removed_count} old chunks for document(s) {incoming_doc_ids} to prevent duplicates.")
-        
-        all_chunks = filtered_chunks
-
-    all_chunks.extend(chunks)
-    all_texts = [c["text"] for c in all_chunks]
-    tokenized_corpus = [text.lower().split() for text in all_texts]
-    bm25 = BM25Okapi(tokenized_corpus)
-
-    # Save to disk
-    print(f"[BM25] Saving index with total {len(all_chunks)} chunks...")
     os.makedirs("data", exist_ok=True)
+    print(f"[BM25] Updating Keyword Index for user {user_id}...")
     
-    with open(BM25_INDEX_PATH, "wb") as f:
-        pickle.dump({
-            "bm25": bm25, 
-            "chunks": all_chunks  
-        }, f)
+    with FileLock(lock_path):
+        all_chunks = []
+        if os.path.exists(index_path):
+            try:
+                with open(index_path, "rb") as f:
+                    existing_data = pickle.load(f)
+                    all_chunks = existing_data.get("chunks", [])
+                    print(f"🔄 [BM25] Loaded {len(all_chunks)} existing chunks.")
+            except Exception as e:
+                print(f"[BM25] Could not load existing index, starting fresh. Error: {e}")
+
+        incoming_doc_ids = {
+            c["metadata"]["document_id"] 
+            for c in chunks 
+            if "metadata" in c and "document_id" in c["metadata"]
+        }
+
+        if incoming_doc_ids:
+            filtered_chunks = [
+                c for c in all_chunks
+                if c.get("metadata", {}).get("document_id") not in incoming_doc_ids
+            ]
+            
+            removed_count = len(all_chunks) - len(filtered_chunks)
+            if removed_count > 0:
+                print(f"[BM25] Removed {removed_count} old chunks for document(s) {incoming_doc_ids} to prevent duplicates.")
+            
+            all_chunks = filtered_chunks
+
+        all_chunks.extend(chunks)
+        all_texts = [c["text"] for c in all_chunks]
+        tokenized_corpus = [text.lower().split() for text in all_texts]
+        bm25 = BM25Okapi(tokenized_corpus) if tokenized_corpus else None
+
+        # Save to disk with atomic swap
+        print(f"[BM25] Saving index with total {len(all_chunks)} chunks...")
+        
+        fd, tmp_path = tempfile.mkstemp(dir="data")
+        with os.fdopen(fd, "wb") as f:
+            pickle.dump({
+                "bm25": bm25, 
+                "chunks": all_chunks  
+            }, f)
+            
+        os.replace(tmp_path, index_path)
     
     print("[BM25] Indexing complete!")
 
 
 def build_indexes(chunks):
     """
-    Takes chunks and routes them to both Vector DB and BM25 index IN PARALLEL.
+    Takes chunks and routes them to both Vector DB and BM25 index sequentially.
     """
     if not chunks:
         print("⚠️ No chunks provided to indexer.")

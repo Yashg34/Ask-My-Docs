@@ -22,18 +22,16 @@ def retrieve_documents(state: GraphState):
 
     vec_results = vec_retriever.retrieve(query, top_k=top_k, where_filter=where_filter)
     
-    # Secure BM25 Search (Fetch extra, filter manually in Python)
-    raw_bm_results = bm25_retriever.retrieve(query, top_k=top_k * 5)
+    # BM25 Search is scoped per-user at the index level
+    raw_bm_results = bm25_retriever.retrieve(query, user_id=user_id, top_k=top_k * 5)
     
     bm_results = []
     for chunk in raw_bm_results:
         meta = chunk.get("metadata", {})
-        # Strict checking for owner
-        if meta.get("user_id") == user_id:
-            # If chatting with a specific document, filter by that too
-            if document_id and meta.get("document_id") != document_id:
-                continue
-            bm_results.append(chunk)
+        # If chatting with a specific document, filter by that
+        if document_id and meta.get("document_id") != document_id:
+            continue
+        bm_results.append(chunk)
             
     bm_results = bm_results[:top_k]
     fused = reciprocal_rank_fusion(vec_results, bm_results)

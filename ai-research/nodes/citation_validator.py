@@ -9,6 +9,9 @@ class ValidationResult(BaseModel):
     is_valid: bool = Field(description="True if ALL claims are supported by their specific citations. False if there are hallucinations or missing citations.")
     feedback: str = Field(description="If invalid, provide specific instructions on what to fix. If valid, return empty string.")
 
+with open("guardrails/output_guardrails.yaml", "r") as f:
+    _OUTPUT_POLICY = yaml.safe_load(f)["policies"][0]
+
 async def validate_citations(state: GraphState):
     print("[Node: Validator] Cross-checking citations using YAML guardrails...")
     
@@ -19,20 +22,26 @@ async def validate_citations(state: GraphState):
     
     # Deterministic Structural Check
     # If the draft answer has no citations in brackets, fail immediately.
-    if not re.search(r"\[.+?\]", draft_answer):
+    citations = re.findall(r"\[.+?\]", draft_answer)
+    if not citations:
         print("   -> Validator Decision: ❌ FAIL (Deterministic Check: No citations found)")
         return {
             "is_valid": False,
             "validation_feedback": "You failed to include any inline citations. You MUST cite your sources using the [Document Name, Page X] format."
         }
         
-    with open("guardrails/output_guardrails.yaml", "r") as file:
-        config = yaml.safe_load(file)
+    # Deterministic Content Check
+    formatted_context = state.get("formatted_context", "")
+    for citation in citations:
+        if citation not in formatted_context:
+            print(f"   -> Validator Decision: ❌ FAIL (Fabricated Citation: {citation})")
+            return {
+                "is_valid": False,
+                "validation_feedback": f"You cited {citation}, but this document/page does not exist in the provided context. Only cite from the provided sources."
+            }
         
-    policy = config["policies"][0]
-    
     prompt = f"""
-        {policy['system_prompt']}
+        {_OUTPUT_POLICY['system_prompt']}
         
         Context:
         {state['formatted_context']}

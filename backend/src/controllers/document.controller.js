@@ -1,6 +1,7 @@
 const Document = require('../models/Document.model');
-const axios = require('axios');
+const aiClient = require('../lib/aiClient');
 const FormData = require('form-data');
+const crypto = require('crypto');
 
 exports.uploadDocument = async (req, res) => {
     let docId = null;
@@ -10,10 +11,23 @@ exports.uploadDocument = async (req, res) => {
             return res.status(400).json({ error: "No file uploaded." });
         }
 
+        // Calculate file hash for deduplication
+        const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+        
+        // Check if user already uploaded this exact file
+        const existingDoc = await Document.findOne({ owner: req.user.id, fileHash: fileHash });
+        if (existingDoc) {
+            return res.status(200).json({
+                message: "Document already exists.",
+                document: existingDoc
+            });
+        }
+
         // 1. Create a tracking record in MongoDB (Status: PROCESSING)
         const newDoc = await Document.create({
             filename: req.file.originalname,
             originalName: req.file.originalname,
+            fileHash: fileHash,
             owner: req.user.id,
             status: 'PROCESSING'
         });
@@ -26,11 +40,11 @@ exports.uploadDocument = async (req, res) => {
         formData.append('document_id', newDoc._id.toString());
 
         // 3. Forward to FastAPI
-        const fastApiResponse = await axios.post('http://127.0.0.1:8000/ingest', formData, {
+        const fastApiResponse = await aiClient.post('/ingest', formData, {
             headers: {
-                ...formData.getHeaders(),
-                'x_user_id': req.user.id
-            }
+                ...formData.getHeaders()
+            },
+            _userId: req.user.id
         });
 
         // 4. Update the document with the FastAPI job_id and return 202 Accepted
@@ -61,7 +75,8 @@ exports.uploadDocument = async (req, res) => {
 
 exports.checkDocumentStatus = async (req, res) => {
     try {
-        const doc = await Document.findById(req.params.id);
+        // Security: Ensure doc.owner matches req.user.id to prevent IDOR vulnerability
+        const doc = await Document.findOne({ _id: req.params.id, owner: req.user.id });
         if (!doc) {
             return res.status(404).json({ error: "Document not found" });
         }
@@ -77,7 +92,9 @@ exports.checkDocumentStatus = async (req, res) => {
 
         // Query FastAPI for background job status
         try {
-            const fastApiResponse = await axios.get(`http://127.0.0.1:8000/ingest/status/${doc.jobId}`);
+            const fastApiResponse = await aiClient.get(`/ingest/status/${doc.jobId}`, {
+                _userId: req.user.id
+            });
             const jobData = fastApiResponse.data;
             
             if (jobData.status === 'COMPLETED') {

@@ -1,5 +1,5 @@
 const QueryRecord = require('../models/QueryRecord.model');
-const axios = require('axios');
+const aiClient = require('../lib/aiClient');
 
 exports.askQuery = async (req, res) => {
     try {
@@ -23,10 +23,8 @@ exports.askQuery = async (req, res) => {
         }
 
         // 2. Hit the FastAPI /query route
-        const fastApiResponse = await axios.post('http://127.0.0.1:8000/query', payload,{
-            headers: {
-                'x_user_id': req.user.id
-            }
+        const fastApiResponse = await aiClient.post('/query', payload, {
+            _userId: req.user.id
         });
         const aiData = fastApiResponse.data;
 

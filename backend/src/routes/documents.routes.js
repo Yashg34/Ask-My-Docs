@@ -7,6 +7,7 @@ const documentController = require('../controllers/document.controller');
 // Using memory storage so we don't save to disk unnecessarily on the Node server
 const upload = multer({ 
     storage: multer.memoryStorage(),
+    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
     fileFilter: (req, file, cb) => {
         if (file.mimetype === 'application/pdf') {
             cb(null, true);

@@ -5,7 +5,6 @@ from nodes.reranker_node import rerank_documents
 from nodes.context_assembler import assemble_context
 from nodes.generator_node import generate_answer
 from nodes.citation_validator import validate_citations 
-from nodes.query_rewriter import rewrite_query
 from nodes.input_guardrail import check_input_safety
 from nodes.intent_routing import route_intent
 from nodes.summarise import summarize_document
@@ -27,7 +26,7 @@ def route_validation(state: GraphState):
 def guardrail_router(state: GraphState):
     if state.get("is_safe") is False:
         return END
-    return "rewriter"
+    return "retriever"
 
 def route_context_safety(state: GraphState):
     if state.get("is_safe") is False:
@@ -63,7 +62,6 @@ workflow.add_node("reranker", rerank_documents)
 workflow.add_node("assembler", assemble_context)
 workflow.add_node("generator", generate_answer)
 workflow.add_node("validator", validate_citations)
-workflow.add_node("rewriter", rewrite_query)
 workflow.add_node("guardrail", check_input_safety)
 workflow.add_node("router", route_intent)
 workflow.add_node("summarize", summarize_document)
@@ -86,10 +84,9 @@ workflow.add_conditional_edges(
     guardrail_router,
     {
         END: END,
-        "rewriter": "rewriter"
+        "retriever": "retriever"
     }
 )
-workflow.add_edge("rewriter", "retriever")
 workflow.add_conditional_edges(
     "retriever",            
     route_after_retrieval,  

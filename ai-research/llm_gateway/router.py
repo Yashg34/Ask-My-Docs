@@ -16,7 +16,9 @@ with open("llm_gateway/litellm_config.yaml", "r") as file:
 
 llm_router = Router(
     model_list=config["model_list"],
-    fallbacks=config.get("router_settings", {}).get("fallbacks", [])
+    fallbacks=config.get("router_settings", {}).get("fallbacks", []),
+    timeout=20,
+    num_retries=1
 )
 
 print("🚀 LiteLLM Gateway Initialized with Fallbacks (Caching Disabled)!")

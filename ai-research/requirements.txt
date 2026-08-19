@@ -11,3 +11,4 @@ pydantic>=2.6.4
 rank_bm25
 litellm
 pyyaml
+redis>=5.0.0

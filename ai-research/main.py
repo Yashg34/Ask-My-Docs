@@ -27,6 +27,12 @@ async def lifespan(app: FastAPI):
     print("✅ All components loaded successfully!")
     yield 
     print("🛑 Shutting down AI components...")
+    try:
+        client = await get_redis_client()
+        await client.close()
+        print("✅ Redis connection closed.")
+    except Exception as e:
+        print(f"⚠️ Error closing Redis: {e}")
 
 # Pass the lifespan context manager to FastAPI
 app = FastAPI(title="Ask My Docs - Phase 3 (Agentic RAG)", lifespan=lifespan)
@@ -45,7 +51,34 @@ class QueryResponse(BaseModel):
     latency_seconds: float
     retrieved_chunks: list
 
-job_store = {}
+import json
+import asyncio
+import redis.asyncio as aioredis
+
+redis_client = None
+
+async def get_redis_client():
+    global redis_client
+    if redis_client is None:
+        # Jab request aayegi, tab ye usi Uvicorn loop par initialize hoga
+        redis_client = aioredis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+    return redis_client
+
+async def set_job(job_id: str, data: dict):
+    try:
+        client = await get_redis_client()
+        await client.set(f"job:{job_id}", json.dumps(data), ex=86400)
+    except Exception as e:
+        print(f"⚠️ Redis unavailable, could not set job {job_id}: {e}")
+
+async def get_job(job_id: str):
+    try:
+        client = await get_redis_client()
+        raw = await client.get(f"job:{job_id}")
+        return json.loads(raw) if raw else None
+    except Exception as e:
+        print(f"⚠️ Redis unavailable, could not get job {job_id}: {e}")
+        return None
 
 @app.get("/health")
 def health():
@@ -72,17 +105,17 @@ def process_ingestion(file_path: str, user_id: str, document_id: str, original_f
 
         end_time = time.time()
         print(f"✅ Successfully ingested '{original_filename}' in {round(end_time - start_time, 2)}s!")
-        job_store[job_id] = {"status": "COMPLETED", "message": f"Successfully ingested in {round(end_time - start_time, 2)}s"}
+        asyncio.run(set_job(job_id, {"status": "COMPLETED", "message": f"Successfully ingested in {round(end_time - start_time, 2)}s"}))
     except Exception as e:
         print(f"❌ Ingestion pipeline failed for {original_filename}: {str(e)}")
-        job_store[job_id] = {"status": "FAILED", "errorMessage": str(e)}
+        asyncio.run(set_job(job_id, {"status": "FAILED", "errorMessage": str(e)}))
     finally:
         if os.path.exists(file_path):
             os.remove(file_path)
 
 @app.get("/ingest/status/{job_id}")
-def get_ingest_status(job_id: str):
-    job = job_store.get(job_id)
+async def get_ingest_status(job_id: str):
+    job = await get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
@@ -105,13 +138,23 @@ async def upload_and_ingest(
         raise HTTPException(status_code=400, detail="Invalid file format. Not a true PDF.")
     
     job_id = uuid.uuid4().hex
-    job_store[job_id] = {"status": "PROCESSING", "message": "Ingestion started..."}
+    await set_job(job_id, {"status": "PROCESSING", "message": "Ingestion started..."})
     os.makedirs("data", exist_ok=True)
     file_path = os.path.join("data", f"{job_id}_{safe_name}")
     
+    MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+    size = 0
     try:
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            while chunk := file.file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    buffer.close()
+                    os.remove(file_path)
+                    raise HTTPException(status_code=413, detail="File too large. Maximum size is 20MB.")
+                buffer.write(chunk)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
         
@@ -165,4 +208,4 @@ async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=os.getenv("ENV") == "development")
