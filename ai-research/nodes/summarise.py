@@ -1,27 +1,70 @@
 import asyncio
+from qdrant_client.models import Filter, FieldCondition, MatchValue
 from llm_gateway.router import llm_router
 from graph.state import GraphState
-from retrieval.vector_retriever import VectorRetriever
-
-vec_retriever = VectorRetriever()
+from config import settings
+from retrieval.vector_store import get_qdrant_client
 
 CHUNK_BATCH_SIZE = 40
 
+
+def _fetch_document_chunks(user_id: str, document_id: str):
+    """Fetch all chunks for a document from Qdrant via `scroll`, paging through
+    every point (the whole document, not a similarity subset).
+
+    Returns a list of chunk dicts: {chunk_id, text, metadata}."""
+    client = get_qdrant_client()
+    query_filter = Filter(must=[
+        FieldCondition(key="user_id", match=MatchValue(value=user_id)),
+        FieldCondition(key="document_id", match=MatchValue(value=document_id)),
+    ])
+
+    chunks = []
+    offset = None
+    while True:
+        page = client.scroll(
+            collection_name=settings.QDRANT_COLLECTION_NAME,
+            scroll_filter=query_filter,
+            limit=100,
+            offset=offset,
+            with_payload=True,
+            with_vectors=False,
+        )
+        points, offset = page
+        for p in points:
+            payload = p.payload or {}
+            text = payload.get("text")
+            if not text:
+                continue
+            chunks.append({
+                "chunk_id": payload.get("chunk_id", str(p.id)),
+                "text": text,
+                "metadata": {
+                    k: v for k, v in payload.items()
+                    if k not in ("text", "chunk_id")
+                },
+            })
+        if not offset:
+            break
+
+    return chunks
+
+
 async def summarize_batch(batch_text: str, batch_index: int) -> str:
-    """Map Phase: Summarize a specific chunk batch in parallel"""
+    """Summarize one chunk batch (map phase)."""
     print(f"      [Map] Summarizing batch {batch_index}...")
-    
-    prompt = f"""You are a technical analyst extracting information. 
-        Summarize the following part of a larger document. 
+
+    prompt = f"""You are a technical analyst extracting information.
+        Summarize the following part of a larger document.
         Focus on extracting key facts, topics, and important details. Do not miss technical specifications.
-        
+
         Document Part:
         {batch_text}
     """
-    
+
     try:
         response = await llm_router.acompletion(
-            model="cheap-model", 
+            model="cheap-model",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1
         )
@@ -29,6 +72,7 @@ async def summarize_batch(batch_text: str, batch_index: int) -> str:
     except Exception as e:
         print(f"⚠️ Error in mapping batch {batch_index}: {e}")
         return ""
+
 
 async def summarize_document(state: GraphState):
     print("📝 [Node: Summarizer] Generating Map-Reduce Document Summary...")
@@ -46,13 +90,18 @@ async def summarize_document(state: GraphState):
 
     print(f"   -> Fetching all chunks for document: {document_id}")
 
-    where_filter = {"$and": [{"user_id": user_id}, {"document_id": document_id}]}
-    results = vec_retriever.collection.get(
-        where=where_filter,
-        include=["documents", "metadatas"]
-    )
+    try:
+        chunks = _fetch_document_chunks(user_id, document_id)
+    except Exception as e:
+        print(f"⚠️ Failed to fetch chunks from Qdrant: {e}")
+        return {
+            "draft_answer": "I couldn't retrieve that document from the vector store right now. Please try again shortly.",
+            "retrieved_chunks": [],
+            "formatted_context": "",
+            "is_valid": True
+        }
 
-    if not results["documents"]:
+    if not chunks:
         return {
             "draft_answer": "I couldn't find that document — it may not have finished indexing yet, or the document_id is wrong.",
             "retrieved_chunks": [],
@@ -61,22 +110,18 @@ async def summarize_document(state: GraphState):
         }
 
     # Sort into reading order (by page)
-    chunks = sorted(
-        zip(results["documents"], results["metadatas"]),
-        key=lambda c: c[1].get("page", 0)
-    )
+    chunks.sort(key=lambda c: c["metadata"].get("page", 0))
 
-    
     batches = []
     for i in range(0, len(chunks), CHUNK_BATCH_SIZE):
         batch = chunks[i : i + CHUNK_BATCH_SIZE]
-        batch_text = "\n\n".join([text for text, meta in batch])
+        batch_text = "\n\n".join([c["text"] for c in batch])
         batches.append(batch_text)
 
     print(f"   -> 🗺️ Map Phase: Split {len(chunks)} chunks into {len(batches)} batches.")
 
     batch_summaries = []
-    
+
     tasks = [summarize_batch(batch_text, i + 1) for i, batch_text in enumerate(batches)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:
@@ -84,12 +129,11 @@ async def summarize_document(state: GraphState):
             batch_summaries.append(result)
 
     print("   -> 📉 Reduce Phase: Combining mini-summaries into Final Master Summary...")
-    
-    # Combine all intermediate summaries
+
     combined_summaries_text = "\n\n--- NEXT SECTION ---\n\n".join(batch_summaries)
 
-    reduce_prompt = f"""You are an expert technical analyst. 
-        Below are summaries of different sequential sections of a large document. 
+    reduce_prompt = f"""You are an expert technical analyst.
+        Below are summaries of different sequential sections of a large document.
         Please synthesize these section summaries into a single, cohesive, and comprehensive master summary.
         Use clear headings, bullet points, and maintain a logical flow of information. Do not mention "Section Summaries" in your output.
 

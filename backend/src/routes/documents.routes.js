@@ -4,15 +4,19 @@ const multer = require('multer');
 const authMiddleware = require('../middleware/auth.middleware');
 const documentController = require('../controllers/document.controller');
 
-// Using memory storage so we don't save to disk unnecessarily on the Node server
-const upload = multer({ 
+// Memory storage so the backend never stages uploads on disk.
+const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 20 * 1024 * 1024 }, // 20MB limit
     fileFilter: (req, file, cb) => {
         if (file.mimetype === 'application/pdf') {
             cb(null, true);
         } else {
-            cb(new Error('Only PDF files are supported!'), false);
+            // Tag 4xx so the global error middleware returns a JSON envelope.
+            const err = new Error('Only PDF files are supported!');
+            err.status = 400;
+            err.code = 'FILE_TYPE_NOT_SUPPORTED';
+            cb(err, false);
         }
     }
 });

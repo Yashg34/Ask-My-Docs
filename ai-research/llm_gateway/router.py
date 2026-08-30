@@ -1,7 +1,7 @@
 import os
 import logging
 import warnings
-import os
+from config import settings
 
 logging.getLogger('LiteLLM').setLevel(logging.ERROR)
 os.environ["LITELLM_LOG"] = "ERROR"

@@ -3,27 +3,36 @@ const aiClient = require('../lib/aiClient');
 const FormData = require('form-data');
 const crypto = require('crypto');
 
+// Returns 202 as soon as the DB record exists and hands ingestion to FastAPI in
+// the background (no disk staging); status polling never re-submits.
 exports.uploadDocument = async (req, res) => {
     let docId = null;
 
     try {
         if (!req.file) {
-            return res.status(400).json({ error: "No file uploaded." });
+            return res.status(400).json({ error: { code: 400, message: "No file uploaded." } });
         }
 
-        // Calculate file hash for deduplication
         const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
-        
-        // Check if user already uploaded this exact file
-        const existingDoc = await Document.findOne({ owner: req.user.id, fileHash: fileHash });
-        if (existingDoc) {
+
+        // Dedup only against a COMPLETED doc. A stuck PROCESSING or FAILED row
+        // must not block a re-upload, so we supersede it and start fresh.
+        const existingDoc = await Document.findOne({ owner: req.user.id, fileHash: fileHash }).sort({ createdAt: -1 });
+        if (existingDoc && existingDoc.status === 'COMPLETED') {
             return res.status(200).json({
                 message: "Document already exists.",
                 document: existingDoc
             });
         }
 
-        // 1. Create a tracking record in MongoDB (Status: PROCESSING)
+        if (existingDoc) {
+            await Document.updateOne(
+                { _id: existingDoc._id },
+                { status: 'FAILED', errorMessage: 'Superseded by a new upload of the same file.' }
+            );
+            console.log(`♻️ Superseded previous attempt ${existingDoc._id} (status ${existingDoc.status}) for a fresh upload`);
+        }
+
         const newDoc = await Document.create({
             filename: req.file.originalname,
             originalName: req.file.originalname,
@@ -34,69 +43,77 @@ exports.uploadDocument = async (req, res) => {
 
         docId = newDoc._id;
 
-        // 2. Prepare the payload for FastAPI
-        const formData = new FormData();
-        formData.append('file', req.file.buffer, req.file.originalname);
-        formData.append('document_id', newDoc._id.toString());
-
-        // 3. Forward to FastAPI
-        const fastApiResponse = await aiClient.post('/ingest', formData, {
-            headers: {
-                ...formData.getHeaders()
-            },
-            _userId: req.user.id
-        });
-
-        // 4. Update the document with the FastAPI job_id and return 202 Accepted
-        const updatedDoc = await Document.findByIdAndUpdate(
-            newDoc._id,
-            { jobId: fastApiResponse.data.job_id },
-            { returnDocument: 'after' }
-        );
+        // Fire-and-forget ingestion; a rejected file just marks the doc FAILED.
+        _ingestInBackground(newDoc, req.file.buffer, req.user.id)
+            .catch((e) => console.error(`⏳ ingestion task crashed (${newDoc._id}):`, e));
 
         return res.status(202).json({
-            message: "Document ingestion started.",
-            document: updatedDoc
+            message: "Document ingestion started. Processing runs in the background.",
+            document: newDoc
         });
 
     } catch (error) {
         if (docId) {
-            await Document.findByIdAndUpdate(docId, { 
+            await Document.findByIdAndUpdate(docId, {
                 status: 'FAILED',
                 errorMessage: error.message
-            });
+            }, { returnDocument: 'after' });
         }
-        
+
         if (!res.headersSent) {
-            res.status(500).json({ error: 'Server error during document upload' });
+            res.status(500).json({ error: { code: 500, message: 'Server error during document upload' } });
         }
     }
 };
 
+// Background hand-off to FastAPI /ingest. Stores the job_id when accepted;
+// marks the doc FAILED if the AI service is unreachable so it never stays PROCESSING.
+async function _ingestInBackground(doc, fileBuffer, ownerId) {
+    try {
+        const formData = new FormData();
+        formData.append('file', fileBuffer, doc.originalName || doc.filename);
+        formData.append('document_id', doc._id.toString());
+
+        const resp = await aiClient.post('/ingest', formData, {
+            headers: { ...formData.getHeaders() },
+            _userId: ownerId,
+        });
+
+        await Document.findByIdAndUpdate(
+            doc._id,
+            { jobId: resp.data.job_id },
+            { returnDocument: 'after' }
+        );
+        console.log(`✅ Handed ${doc._id} to FastAPI (job ${resp.data.job_id})`);
+
+    } catch (e) {
+        console.error(`⏳ Failed to start ingestion for ${doc._id}:`, e.message);
+        await Document.findByIdAndUpdate(doc._id, {
+            status: 'FAILED',
+            errorMessage: `Could not start ingestion: ${e.message}`
+        }, { returnDocument: 'after' });
+    }
+}
+
 exports.checkDocumentStatus = async (req, res) => {
     try {
-        // Security: Ensure doc.owner matches req.user.id to prevent IDOR vulnerability
+        // Ensure the doc belongs to the requesting user (prevents IDOR).
         const doc = await Document.findOne({ _id: req.params.id, owner: req.user.id });
         if (!doc) {
-            return res.status(404).json({ error: "Document not found" });
+            return res.status(404).json({ error: { code: 404, message: "Document not found" } });
         }
-        
-        // If it's already finished processing, just return it
-        if (doc.status !== 'PROCESSING') {
-            return res.status(200).json({ document: doc });
-        }
-        
-        if (!doc.jobId) {
+
+        // Nothing to poll if not processing or not yet handed to FastAPI.
+        if (doc.status !== 'PROCESSING' || !doc.jobId) {
             return res.status(200).json({ document: doc });
         }
 
-        // Query FastAPI for background job status
         try {
             const fastApiResponse = await aiClient.get(`/ingest/status/${doc.jobId}`, {
                 _userId: req.user.id
             });
             const jobData = fastApiResponse.data;
-            
+
             if (jobData.status === 'COMPLETED') {
                 doc.status = 'COMPLETED';
                 await doc.save();
@@ -105,7 +122,7 @@ exports.checkDocumentStatus = async (req, res) => {
                 doc.errorMessage = jobData.errorMessage || "Unknown ingestion error";
                 await doc.save();
             }
-            
+
             return res.status(200).json({ document: doc, message: jobData.message });
         } catch (fastApiError) {
             console.error("❌ Failed to query FastAPI status:", fastApiError.message);
@@ -113,6 +130,7 @@ exports.checkDocumentStatus = async (req, res) => {
         }
 
     } catch (error) {
-        res.status(500).json({ error: 'Server error checking status' });
+        console.error("❌ Error checking document status:", error);
+        res.status(500).json({ error: { code: 500, message: 'Server error checking status' } });
     }
 };

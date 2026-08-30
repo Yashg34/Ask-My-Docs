@@ -18,9 +18,14 @@ class Generator:
         ]
 
         for msg in chat_history[-10:]:
+            if not isinstance(msg, dict):
+                continue
+            role = msg.get("role")
+            if role not in ("user", "assistant", "system"):
+                role = "user"
             messages.append({
-                "role": msg["role"],
-                "content": msg["content"]
+                "role": role,
+                "content": str(msg.get("content") or "")
             })
 
         current_prompt = f"CONTEXT:\n{context}\n\nQUESTION: {query}\n\nANSWER:"

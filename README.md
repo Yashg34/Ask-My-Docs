@@ -5,10 +5,10 @@
 Standard single-prompt LLM usage breaks down quickly when used as a "chat with your documents" tool, for three structural reasons:
 
 * **Hallucination when the model runs out of real evidence:** A single LLM call, when it doesn't actually know the answer from the supplied text, will often generate a fluent, confident-sounding answer anyway — filling the gap from its own parametric memory rather than admitting the document set doesn't cover the question.
-* **Recall failure from single-strategy retrieval:** Pure vector (semantic) search misses exact-match queries (error codes, product names, config keys) where lexical overlap matters more than semantic similarity. Pure keyword search misses paraphrased questions. 
+* **Recall failure from single-strategy retrieval:** Pure vector (semantic) search can miss exact-match queries (error codes, product names, config keys), while pure keyword search misses paraphrased questions. We retrieve *wide* with vector search (Qdrant Cloud) and let a FlashRank reranker do the precision pass — catching both paraphrases and exact/symbolic matches without maintaining a second keyword index.
 * **No self-check before the answer ships:** A single forward pass has no mechanism to verify its own output against the retrieved evidence once generation is done. The citation itself can be a hallucination.
 
-This project addresses these failure modes with a **hybrid-retrieval, citation-enforced, self-correcting pipeline**. The result is a system structurally biased toward catching its own errors, rather than one that hopes a single generation gets everything right the first time.
+This project addresses these failure modes with a **vector-retrieval + FlashRank-reranked, citation-enforced, self-correcting pipeline**: guardrailed input, wide Qdrant Cloud retrieval, FlashRank reranking, and a validator that corrects its own citations. The result is a system structurally biased toward catching its own errors, rather than one that hopes a single generation gets everything right the first time.
 
 ## 2. Expected Architecture
 
@@ -23,45 +23,38 @@ graph TD
     Node -->|3. Trigger Ingestion / Query| FastAPI
 
     subgraph "Ingestion Pipeline"
-        FastAPI -.->|Parse/Chunk/Embed| Ingest[Ingestion Service]
-        Ingest --> VectorDB[(Vector Store - Chroma)]
-        Ingest --> BM25[(BM25 / Keyword Index)]
+        FastAPI -.->|Parse / Chunk / Embed| Ingest[Ingestion Service]
+        Ingest --> Qdrant[(Qdrant Cloud Vector Store)]
     end
 
     subgraph "AI Orchestration (LangGraph)"
-        FastAPI[Graph Entry] --> Retriever[Retriever Node]
-        Retriever -->|Query| VectorDB
-        Retriever -->|Query| BM25
-        Retriever --> Reranker[Reranker Node]
+        FastAPI[Graph Entry]
+        FastAPI --> Guardrail[Guardrail Gate - Input Safety]
+        Guardrail -->|blocked| Done[Final Answer]
+        Guardrail --> Router[Router: Triage + Query Rewrite]
+        Router -->|GREETING / SUMMARY| Done
+        Router -->|RAG| Retriever[Retriever Node]
+        Retriever -->|wide vector query| Qdrant
+        Retriever --> Reranker[FlashRank Reranker]
         Reranker --> Assembler[Context Assembler]
-        Assembler --> Generator[Generator Node]
+        Assembler --> GenGuard[Context Safety Guardrail]
+        GenGuard --> Generator[Generator Node]
         Generator --> Validator[Citation Validator Node]
-        Validator -->|Invalid: revise, capped| Generator
-        Validator -->|Valid| Done[Final Answer]
+        Validator -->|Invalid: revise, capped at 3| Generator
+        Validator -->|Valid| Done
     end
 
     Generator --> Gateway
     Validator --> Gateway
 
-    subgraph "LLM Security & Routing Layer"
-        Gateway{LLM Gateway - LiteLLM} -->|4. Check Cache| Cache[(Semantic Cache)]
-        Cache -.->|Hit: Fast TTFT| Gateway
-        Gateway -->|Miss| InGuard[Input Guardrails: PII, Injection]
-        InGuard -->|5. Safe Prompt| Router[Semantic / Fallback Router]
-        Router -->|Fast/Cheap| Fast[Small Model]
-        Router -->|Reasoning-Heavy| Strong[Strong Model]
-        Fast -.->|Stream Tokens| OutGuard
-        Strong -.->|Stream Tokens| OutGuard
-        OutGuard[Output Guardrails: Schema/Citation Format] -->|6. Validated Output| Gateway
+    subgraph "LLM Gateway & Observability"
+        Gateway{LLM Gateway - LiteLLM} --> Models[cheap / strong / evaluator models]
+        Guardrail -.->|spans / counters| Logfire[(Logfire)]
+        Done -.->|traces| LangSmith[(LangSmith Traces)]
     end
 
-    Gateway -->|7. Return to Graph| Done
-    Done -->|8. Stream Result| Node
+    Done -->|8. Return to Node| Node
     Node -.->|WebSockets| React
-
-    Gateway -.->|9. Async Logging| LangSmith[(LangSmith Traces)]
-    LangSmith -.->|10. Batch Scoring| Eval[Ragas Evaluators]
-    Eval -.->|Metrics: Faithfulness, Context Precision| CI([CI/CD Quality Gate])
 
     classDef frontend fill:#ffffff,stroke:#2563eb,stroke-width:2px,color:#111827;
     classDef backend fill:#ffffff,stroke:#16a34a,stroke-width:2px,color:#111827;
@@ -74,9 +67,8 @@ graph TD
 
     class React,User frontend;
     class Node,Mongo backend;
-    class FastAPI,Ingest,Retriever,Reranker,Assembler,Generator,Validator,Done,VectorDB,BM25 myGraph;
+    class FastAPI,Ingest,Retriever,Reranker,Assembler,Generator,Validator,Done,Qdrant,Router myGraph;
     class Gateway gateway;
-    class InGuard,OutGuard guardrail;
-    class Cache,Router optimize;
-    class Fast,Strong llm;
-    class LangSmith,Eval,CI eval;
+    class Guardrail,GenGuard guardrail;
+    class Models llm;
+    class LangSmith,Logfire eval;

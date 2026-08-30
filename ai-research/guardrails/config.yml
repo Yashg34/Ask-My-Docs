@@ -1,0 +1,37 @@
+# NeMo Guardrails Configuration for Ask-My-Docs
+# This configuration uses embeddings-based similarity for fast, deterministic guardrails
+# without requiring expensive LLM calls for every input safety check.
+
+# For embeddings-only rails (no generative responses), we configure a minimal model
+# that NeMo Guardrails uses only for its internal embeddings similarity checks
+models:
+  - type: main
+    engine: openai
+    model: gpt-3.5-turbo
+    # This model is NOT actually called for our embeddings-based rails
+    # It's only used if we enable generative rails (which we don't)
+    # The actual safety checks use the embeddings config below
+
+rails:
+  input:
+    flows:
+      - check jailbreak
+      - check prompt injection
+      - check pii leak
+
+  output:
+    flows: []
+
+# Embeddings-based configuration
+# NeMo Guardrails will use sentence similarity against the example utterances
+# in the .co files instead of making LLM calls for classification
+# This is what makes our guardrails fast and deterministic
+embeddings:
+  enabled: true
+  engine: SentenceTransformers
+  model: all-MiniLM-L6-v2
+  # Similarity threshold: 0.85 means input must be 85%+ similar to an example
+  # utterance to trigger that rail. Higher threshold = fewer false positives.
+  # Tuned to 0.85 (from 0.75) to reduce over-blocking of benign queries.
+  similarity_threshold: 0.85
+

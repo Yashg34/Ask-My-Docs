@@ -1,34 +1,25 @@
-from dotenv import load_dotenv
-from typing import List, Dict
-from ingestion.embedder import get_embedder, get_chroma_client
+"""Vector retriever using Qdrant Cloud."""
 
-load_dotenv()
+from typing import List, Dict
+from ingestion.embedder import get_embedder
+from config import settings
+from retrieval.vector_store import search_vectors
+
 
 class VectorRetriever:
-    def __init__(self, collection_name: str = "master_docs"):
-        self.client = get_chroma_client()
-        self.collection = self.client.get_or_create_collection(name=collection_name)
+    """Retrieves similar chunks from Qdrant Cloud via vector search."""
+
+    def __init__(self, collection_name: str = None):
+        self.collection_name = collection_name or settings.QDRANT_COLLECTION_NAME
         self.embedder = get_embedder()
 
     def retrieve(self, query: str, top_k: int = 5, where_filter: dict = None) -> List[Dict]:
-        if self.collection.count() == 0:
-            return []
-        
+        """Return top_k chunk dicts (chunk_id, text, metadata, score) for the query."""
         query_embedding = self.embedder.embed_query(query)
-        
-        results = self.collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k,
-            where=where_filter 
+
+        return search_vectors(
+            collection_name=self.collection_name,
+            query_vector=query_embedding,
+            top_k=top_k,
+            filter_dict=where_filter
         )
-
-        retrieved_chunks = []
-        if results["documents"]:
-            for i in range(len(results["documents"][0])):
-                retrieved_chunks.append({
-                    "chunk_id": results["ids"][0][i],
-                    "text": results["documents"][0][i],
-                    "metadata": results["metadatas"][0][i]
-                })
-
-        return retrieved_chunks

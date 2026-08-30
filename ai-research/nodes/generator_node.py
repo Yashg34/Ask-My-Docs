@@ -15,7 +15,7 @@ async def generate_answer(state: GraphState):
     feedback = state.get("validation_feedback", "")
     
     if feedback:
-        query += f"\n\n[CRITICAL FEEDBACK FROM VALIDATOR: {feedback}. Rewrite strictly fixing these errors.]"
+        query += f"\n\n[CRITICAL FEEDBACK FROM EVALUATOR: {feedback}. Rewrite strictly fixing these errors.]"
         
     draft = await llm_generator.generate_answer(query, context, chat_history)
     

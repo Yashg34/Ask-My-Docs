@@ -11,27 +11,28 @@ exports.register = async (req, res) => {
         const { email, password } = req.body;
 
         if (!email?.trim() || !password?.trim()) {
-            return res.status(400).json({ error: 'Email and password are required' });
-        }
-        
-        if ([email, password].some((field) => field?.trim() === "" || field === undefined)) {
-            return res.status(400).json({ error: 'All fields are required and cannot be empty' });
+            return res.status(400).json({ error: { code: 400, message: 'Email and password are required' } });
         }
 
-        const existedUser = await User.findOne({ email });
+        if ([email, password].some((field) => field?.trim() === "" || field === undefined)) {
+            return res.status(400).json({ error: { code: 400, message: 'All fields are required and cannot be empty' } });
+        }
+
+        const emailNorm = email.toLowerCase().trim();
+        const existedUser = await User.findOne({ email: emailNorm });
         if (existedUser) {
-            return res.status(409).json({ error: 'User with this email already exists' });
+            return res.status(409).json({ error: { code: 409, message: 'User with this email already exists' } });
         }
 
         const user = await User.create({ 
-            email: email.toLowerCase().trim(), 
+            email: emailNorm, 
             password 
         });
 
         const createdUser = await User.findById(user._id).select("-password");
 
         if (!createdUser) {
-            return res.status(500).json({ error: 'Something went wrong while registering the user' });
+            return res.status(500).json({ error: { code: 500, message: 'Something went wrong while registering the user' } });
         }
 
         return res.status(201).json({
@@ -40,25 +41,30 @@ exports.register = async (req, res) => {
 
     } catch (error) {
         console.error("Registration Error:", error);
-        res.status(500).json({ error: 'Server error during registration' });
+        res.status(500).json({ error: { code: 500, message: 'Server error during registration' } });
     }
 };
 
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
-        const user = await User.findOne({ email });
+        // Lookup with the same normalization register applies, else a case
+        // difference would silently 401.
+        const user = await User.findOne({ email: email?.toLowerCase().trim() });
 
         if (!user || !(await user.comparePassword(password))) {
-            return res.status(401).json({ error: 'Invalid email or password' });
+            return res.status(401).json({ error: { code: 401, message: 'Invalid email or password' } });
         }
 
         const token = generateToken(user._id);
 
+        // secure cookies are HTTPS-only; a hardcoded true would drop the cookie
+        // over local dev HTTP and lock the user out.
+        const isProduction = process.env.NODE_ENV === 'production';
         res.cookie('token', token, {
-            httpOnly: true, 
-            secure: true,
-            sameSite: 'strict', 
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction ? 'strict' : 'lax',
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
 
@@ -67,7 +73,7 @@ exports.login = async (req, res) => {
             user: { id: user._id, email: user.email }
         });
     } catch (error) {
-        res.status(500).json({ error: 'Server error during login' });
+        res.status(500).json({ error: { code: 500, message: 'Server error during login' } });
     }
 };
 
@@ -76,6 +82,6 @@ exports.logout = async (req, res) => {
         res.clearCookie('token');
         return res.status(200).json({ message: "Successfully logged out." });
     } catch (error) {
-        res.status(500).json({ error: 'Server error during logout' });
+        res.status(500).json({ error: { code: 500, message: 'Server error during logout' } });
     }
 };
