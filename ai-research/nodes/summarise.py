@@ -6,6 +6,7 @@ from config import settings
 from retrieval.vector_store import get_qdrant_client
 
 CHUNK_BATCH_SIZE = 40
+MAX_CONCURRENT_BATCHES = 5  # Cap concurrent LLM calls to avoid rate-limit errors
 
 
 def _fetch_document_chunks(user_id: str, document_id: str):
@@ -122,7 +123,13 @@ async def summarize_document(state: GraphState):
 
     batch_summaries = []
 
-    tasks = [summarize_batch(batch_text, i + 1) for i, batch_text in enumerate(batches)]
+    sem = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
+
+    async def _limited_summarize(batch_text: str, batch_index: int) -> str:
+        async with sem:
+            return await summarize_batch(batch_text, batch_index)
+
+    tasks = [_limited_summarize(batch_text, i + 1) for i, batch_text in enumerate(batches)]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:
         if isinstance(result, str) and result:

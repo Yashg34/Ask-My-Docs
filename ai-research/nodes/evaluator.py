@@ -16,18 +16,15 @@ class Evaluation(BaseModel):
     is_valid: bool = Field(description="True if the answer is grounded, correct, and complete.")
     answers_query: bool = Field(description="True if the answer actually addresses the user's question.")
     is_safe: bool = Field(description="True if the answer contains no unsafe content or signs of prompt injection.")
-    reroute: Literal["done", "generation", "retrieval"] = Field(
-        description="'done' if the answer is acceptable; 'generation' to regenerate with feedback; 'retrieval' if different context is needed to answer."
+    reroute: Literal["done", "generation"] = Field(
+        description="'done' if the answer is acceptable; 'generation' to regenerate with feedback."
     )
     feedback: str = Field(default="", description="If reroute=generation, specific instructions on what to fix.")
-    suggested_query: str = Field(
-        default="", description="If reroute=retrieval, a rewritten keyword query to fetch better context."
-    )
 
 
 async def evaluate(state: GraphState):
     """Validate citations, check output safety, and critique whether the answer
-    actually answers the query. Reroutes to generation or retrieval when needed."""
+    actually answers the query. Reroutes to generation with feedback when needed."""
     formatted_context = state.get("formatted_context", "")
     draft_answer = state.get("draft_answer", "")
 
@@ -79,15 +76,8 @@ Draft Answer:
         if result.is_valid and result.answers_query and result.is_safe:
             return {"is_valid": True, "reroute": "done"}
 
-        # Answer doesn't address the query and better context may help → refetch.
-        if not result.answers_query and result.reroute == "retrieval":
-            return {
-                "is_valid": False,
-                "reroute": "retrieval",
-                "search_query": result.suggested_query or state.get("search_query", state["query"]),
-            }
-
-        # Otherwise regenerate with feedback.
+        # Regenerate with feedback — retrieval reroute removed; the same query
+        # would return the same chunks, so retrying retrieval is wasteful.
         return {
             "is_valid": False,
             "reroute": "generation",

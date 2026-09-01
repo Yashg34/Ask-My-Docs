@@ -15,20 +15,21 @@ This project addresses these failure modes with a **vector-retrieval + FlashRank
 ```mermaid
 graph TD
     subgraph "MERN Layer (Frontend & Backend)"
-        User((User)) -->|1. Upload Docs / Ask Question| React[React Frontend]
-        React -->|2. REST / WebSocket| Node[Node.js + Express API]
+        User((User)) -->|"1. Upload Docs / Ask Question"| React[React Frontend]
+        React -->|"2. REST (upload / query / status)"| Node[Node.js + Express API]
+        React -.->|"3. Socket.IO (real-time ingestion status)"| Node
         Node -->|Save/Load State| Mongo[(MongoDB)]
     end
 
-    Node -->|3. Trigger Ingestion / Query| FastAPI
+    Node -->|"4. Trigger Ingestion / Query"| FastAPI[Graph Entry]
 
     subgraph "Ingestion Pipeline"
-        FastAPI -.->|Parse / Chunk / Embed| Ingest[Ingestion Service]
+        FastAPI -.->|"Parse / Chunk / Embed / Index"| Ingest[Ingestion Service]
         Ingest --> Qdrant[(Qdrant Cloud Vector Store)]
+        Ingest -.->|SSE status stream| Node
     end
 
     subgraph "AI Orchestration (LangGraph)"
-        FastAPI[Graph Entry]
         FastAPI --> Guardrail[Guardrail Gate - Input Safety]
         Guardrail -->|blocked| Done[Final Answer]
         Guardrail --> Router[Router: Triage + Query Rewrite]
@@ -40,7 +41,7 @@ graph TD
         Assembler --> GenGuard[Context Safety Guardrail]
         GenGuard --> Generator[Generator Node]
         Generator --> Validator[Citation Validator Node]
-        Validator -->|Invalid: revise, capped at 3| Generator
+        Validator -->|"Invalid: revise, capped at 3"| Generator
         Validator -->|Valid| Done
     end
 
@@ -49,12 +50,12 @@ graph TD
 
     subgraph "LLM Gateway & Observability"
         Gateway{LLM Gateway - LiteLLM} --> Models[cheap / strong / evaluator models]
-        Guardrail -.->|spans / counters| Logfire[(Logfire)]
+        Guardrail -.->|"spans / counters"| Logfire[(Logfire)]
         Done -.->|traces| LangSmith[(LangSmith Traces)]
     end
 
-    Done -->|8. Return to Node| Node
-    Node -.->|WebSockets| React
+    Done -->|"9. Return to Node"| Node
+    Node -.->|Socket.IO push| React
 
     classDef frontend fill:#ffffff,stroke:#2563eb,stroke-width:2px,color:#111827;
     classDef backend fill:#ffffff,stroke:#16a34a,stroke-width:2px,color:#111827;

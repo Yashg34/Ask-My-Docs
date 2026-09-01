@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Header, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from starlette.concurrency import run_in_threadpool
@@ -18,6 +18,7 @@ from config import settings
 from ingestion.parser import parse_pdf_slice
 from ingestion.chunker import chunk_pages
 from ingestion.indexer import build_indexes
+from events import register_query_events, clear_query_events, mark_query_done, latest_query_event
 from observability import setup_logfire, instrument_fastapi, setup_langsmith
 
 graph_app = None
@@ -97,6 +98,7 @@ class QueryRequest(BaseModel):
     top_n: int = 5       # Post-reranking (sends the top-N best chunks to Gemini; default matches backend/README)
     threshold: float = 0.05
     chat_history: List[dict] = Field(default_factory=list)
+    query_id: str = ""   # Client-generated id for real-time progress (Socket.IO room key)
 
 class QueryResponse(BaseModel):
     query: str
@@ -166,6 +168,66 @@ async def get_job(job_id: str):
     raw = _job_store.get(job_id)
     return json.loads(raw) if raw else None
 
+
+# ── Real-time status streaming (SSE) ─────────────────────────────────────────
+# Ingestion runs in a sync thread pool, so we use a thread-safe queue to bridge
+# status events from the worker thread into the async SSE endpoint.
+
+import asyncio
+import queue as _queue
+
+_job_queues: dict[str, _queue.Queue] = {}
+
+
+def _emit_status_sync(job_id: str, status: str, message: str = ""):
+    """Push a status event from the sync worker thread into the SSE queue."""
+    q = _job_queues.get(job_id)
+    if q:
+        q.put({"status": status, "message": message})
+
+
+@app.get("/ingest/events/{job_id}")
+async def ingest_events(job_id: str):
+    """SSE stream that pushes real-time ingestion status to the frontend."""
+    q: _queue.Queue = _queue.Queue()
+    _job_queues[job_id] = q
+
+    async def _stream():
+        try:
+            # First send the current persisted status (handles connecting late).
+            current = await get_job(job_id)
+            if current:
+                yield f"data: {json.dumps(current)}\n\n"
+                if current.get("status") in ("COMPLETED", "FAILED"):
+                    return
+
+            last_status = current.get("status") if current else None
+            while True:
+                try:
+                    event = q.get(timeout=0.5)
+                    last_status = event["status"]
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if last_status in ("COMPLETED", "FAILED"):
+                        return
+                except _queue.Empty:
+                    # Fallback: the worker emits to the queue, but the terminal
+                    # result is only persisted to the job store AFTER the worker
+                    # finishes. Poll the store too so a late-connecting client
+                    # still observes the PROCESSING -> COMPLETED/FAILED transition.
+                    job = await get_job(job_id)
+                    status = job.get("status") if job else None
+                    if status and status != last_status:
+                        last_status = status
+                        yield f"data: {json.dumps(job)}\n\n"
+                        if status in ("COMPLETED", "FAILED"):
+                            return
+                    # Heartbeat to keep the connection alive
+                    yield f": heartbeat\n\n"
+        finally:
+            _job_queues.pop(job_id, None)
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
+
 @app.get("/health")
 def health():
     return {"status": "Ask My Docs pipeline running smoothly"}
@@ -230,26 +292,34 @@ async def patch_config(request: Request, updates: ConfigUpdate):
     print(f"⚙️ Soft-config updated: {applied}")
     return {"applied": applied, "config": _config_view()}
 
-def _run_ingestion_sync(file_path: str, user_id: str, document_id: str, original_filename: str) -> dict:
+def _run_ingestion_sync(file_path: str, user_id: str, document_id: str, original_filename: str, job_id: str = None) -> dict:
     """Blocking ingestion work (parse, chunk, embed, Qdrant write). Runs in a
     worker thread so it never freezes the event loop."""
     print(f"🔄 Starting background ingestion for {original_filename}...")
     start_time = time.time()
     try:
+        _emit_status_sync(job_id, "PARSING", "Extracting text from PDF...")
         pages = parse_pdf_slice(file_path)
+
+        _emit_status_sync(job_id, "CHUNKING", "Splitting document into chunks...")
         chunks = chunk_pages(
             pages=pages,
             user_id=user_id,
             document_id=document_id,
             document_name=original_filename
         )
+
+        _emit_status_sync(job_id, "INDEXING", "Embedding and indexing chunks...")
         build_indexes(chunks)
+
         elapsed = round(time.time() - start_time, 2)
         print(f"✅ Successfully ingested '{original_filename}' in {elapsed}s!")
+        _emit_status_sync(job_id, "COMPLETED", f"Successfully ingested in {elapsed}s")
         return {"status": "COMPLETED", "message": f"Successfully ingested in {elapsed}s"}
     except Exception as e:
         print(f"❌ Ingestion pipeline failed for {original_filename}: {e}")
         traceback.print_exc()
+        _emit_status_sync(job_id, "FAILED", str(e))
         return {"status": "FAILED", "errorMessage": str(e)}
     finally:
         if os.path.exists(file_path):
@@ -264,11 +334,12 @@ async def process_ingestion(file_path: str, user_id: str, document_id: str, orig
     thread pool, then persists the job result (Redis or memory fallback)."""
     try:
         result = await run_in_threadpool(
-            _run_ingestion_sync, file_path, user_id, document_id, original_filename
+            _run_ingestion_sync, file_path, user_id, document_id, original_filename, job_id
         )
     except Exception as e:
         print(f"❌ Ingestion driver failed for {original_filename}: {e}")
         traceback.print_exc()
+        _emit_status_sync(job_id, "FAILED", f"Unexpected driver error: {e}")
         result = {"status": "FAILED", "errorMessage": f"Unexpected driver error: {e}"}
     try:
         await set_job(job_id, result)
@@ -351,12 +422,14 @@ async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
             "top_k": request.top_k,
             "top_n": request.top_n,
             "threshold": request.threshold,
-            "revision_count": 0  
+            "revision_count": 0,
+            "query_id": request.query_id,
         }
 
         # Use the globally loaded graph_app
         final_state = await graph_app.ainvoke(initial_state)
 
+        mark_query_done(request.query_id)
         end_time = time.time()
 
         return QueryResponse(
@@ -366,7 +439,42 @@ async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
             retrieved_chunks=_json_safe(final_state.get("retrieved_chunks", []))
         )
     except Exception as e:
+        mark_query_done(request.query_id, f"Query failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/query/events/{query_id}")
+async def query_events(query_id: str):
+    """SSE stream pushing live RAG pipeline progress for a query_id."""
+    q = register_query_events(query_id)
+    _QUERY_SSE_TIMEOUT = 300.0  # hard cap so a stuck stream can't leak forever
+
+    async def _stream():
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _QUERY_SSE_TIMEOUT
+        try:
+            # A late-connecting client: if the query already finished, send the
+            # cached terminal event and stop instead of hanging on heartbeats.
+            done = latest_query_event(query_id)
+            if done and done.get("stage") == "done":
+                yield f"data: {json.dumps(done)}\n\n"
+                return
+
+            while loop.time() <= deadline:
+                try:
+                    event = q.get(timeout=0.5)
+                    yield f"data: {json.dumps(event)}\n\n"
+                    if event.get("stage") == "done":
+                        return
+                except _queue.Empty:
+                    yield f": heartbeat\n\n"
+        finally:
+            clear_query_events(query_id)
+
+    return StreamingResponse(_stream(), media_type="text/event-stream", headers={
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+    })
 
 if __name__ == "__main__":
     import uvicorn

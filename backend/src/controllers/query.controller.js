@@ -1,9 +1,11 @@
 const QueryRecord = require('../models/QueryRecord.model');
+const Document = require('../models/Document.model');
 const aiClient = require('../lib/aiClient');
+const { streamQueryStatus } = require('../services/statusStream');
 
 exports.askQuery = async (req, res) => {
     try {
-        const { query, documentId, topK, topN, threshold, chatHistory } = req.body;
+        const { query, documentId, topK, topN, threshold, chatHistory, queryId } = req.body;
 
         if (!query || !query.trim()) {
             return res.status(400).json({ error: { code: 400, message: "Query cannot be empty." } });
@@ -16,11 +18,25 @@ exports.askQuery = async (req, res) => {
             top_k: topK ?? 15,
             top_n: topN ?? 5,
             threshold: threshold ?? 0.05,
-            chat_history: chatHistory || []
+            chat_history: chatHistory || [],
+            query_id: queryId || ''
         };
 
         if (documentId) {
+            // Defense-in-depth: never forward a document the user doesn't own.
+            // Qdrant's user_id filter would block it anyway, but this fails fast
+            // and reads as a proper 404 instead of a silent empty retrieval.
+            const owned = await Document.findOne({ _id: documentId, owner: req.user.id });
+            if (!owned) {
+                return res.status(404).json({ error: { code: 404, message: "Document not found" } });
+            }
             payload.document_id = documentId;
+        }
+
+        // Start relaying real-time RAG progress to the frontend's Socket.IO
+        // room BEFORE forwarding, so subscription is live when the graph runs.
+        if (queryId) {
+            streamQueryStatus(queryId, req.user.id);
         }
 
         const fastApiResponse = await aiClient.post('/query', payload, {

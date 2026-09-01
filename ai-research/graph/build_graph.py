@@ -9,17 +9,21 @@ from nodes.context_check import check_context
 from nodes.evaluator import evaluate
 from nodes.summarise import summarize_document
 from observability import logfire_span, increment_counter
+from events import emit_query_event
 import inspect
 
-# Max times the evaluate loop may reroute back to retrieval/generation.
+# Max times the evaluate loop may reroute back to generation.
 MAX_REROUTES = 3
 
 
-# Wrap each node with a Logfire span 
+# Wrap each node with a Logfire span + a real-time progress event
 def _with_span(node_func, span_name: str):
     async def wrapped(state):
+        # Emit live progress ("Searching…", "Ranking…", …) for SSE relayed to
+        # the frontend. No-op when the query has no query_id / no subscriber.
+        emit_query_event(state.get("query_id", ""), span_name)
         with logfire_span(span_name, node=span_name):
-            result = node_func(state) 
+            result = node_func(state)
             if inspect.isawaitable(result):
                 result = await result
             return result
@@ -70,11 +74,11 @@ def context_router(state: GraphState):
 
 def evaluate_router(state: GraphState):
     reroute = state.get("reroute")
-    if reroute in ("retrieval", "generation") and state.get("revision_count", 0) < MAX_REROUTES:
+    if reroute == "generation" and state.get("revision_count", 0) < MAX_REROUTES:
         increment_counter("validator_retry")
-        print(f"🔄 Evaluate: rerouting to {'retriever' if reroute == 'retrieval' else 'generator'} "
+        print(f"🔄 Evaluate: rerouting to generator "
               f"(attempt {state.get('revision_count', 0)}/{MAX_REROUTES})")
-        return reroute
+        return "generator"
     return END
 
 
@@ -125,7 +129,6 @@ workflow.add_conditional_edges(
     evaluate_router,
     {
         END: END,
-        "retriever": "retriever",
         "generator": "generator",
     },
 )

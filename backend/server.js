@@ -1,9 +1,11 @@
 require('dotenv').config();
+const http = require('http');
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const multer = require('multer');
+const { attachSocketIO } = require('./src/services/statusStream');
 
 const app = express();
 
@@ -54,8 +56,13 @@ app.use((err, req, res, next) => {
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
         console.log('✅ Connected to MongoDB');
+
+        // Create the HTTP server explicitly so Socket.IO can attach to it.
+        const server = http.createServer(app);
+        attachSocketIO(server);
+
         const PORT = process.env.PORT || 5000;
-        app.listen(PORT, () => {
+        server.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT}`);
         });
     })
