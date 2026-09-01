@@ -1,5 +1,3 @@
-# --- Python & AI Microservice ---
-
 .env
 __pycache__/
 data/
@@ -7,5 +5,4 @@ data/
 node_modules/
 .flashrank_cache/
 langgraph_architecture.png
-# Legacy local vector store (replaced by Qdrant Cloud; kept ignored if any stray dir remains)
 chroma_db/

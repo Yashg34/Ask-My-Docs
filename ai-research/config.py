@@ -55,11 +55,6 @@ class Settings(BaseSettings):
         description="Path to NeMo Guardrails config directory (contains config.yml and rails/*.co)"
     )
 
-    USE_NEMO_GUARDRAILS: bool = Field(
-        default=False,
-        description="Use NeMo Guardrails for input safety (experimental, has false positives)"
-    )
-
     GUARDRAIL_FAIL_MODE: str = Field(
         default="closed",
         description="Guardrail behavior on LLM error: 'closed' (block, default) or 'open' (proceed)"

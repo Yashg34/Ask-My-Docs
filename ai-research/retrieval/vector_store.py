@@ -32,8 +32,7 @@ def get_qdrant_client() -> QdrantClient:
             )
 
         print(f"🔗 Connecting to Qdrant Cloud at {settings.QDRANT_URL}...")
-        # 120s: the first upsert into a fresh collection (incl. building payload
-        # indexes) can exceed 30s on a remote cluster — let ingestion take time.
+        
         _qdrant_client = QdrantClient(
             url=settings.QDRANT_URL,
             api_key=settings.QDRANT_API_KEY,

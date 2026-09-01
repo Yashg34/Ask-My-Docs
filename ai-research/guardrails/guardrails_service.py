@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field
 from nemoguardrails import RailsConfig, LLMRails
 from config import settings
+import logging
 import os
 
 
@@ -24,6 +25,19 @@ class NeMoGuardrailsService:
     """Singleton service running NeMo Guardrails input safety checks."""
 
     def __init__(self, config_path: str = "guardrails"):
+        # NeMo's colang runtime + action dispatcher log at INFO by default, which
+        # floods the terminal per request (event traces, action registrations).
+        # Operational chatter, not errors - silence below WARNING.
+        for _logger_name in (
+            "nemoguardrails",
+            "nemoguardrails.actions",
+            "nemoguardrails.colang",
+            "nemoguardrails.llm",
+            "nemoguardrails.rails",
+            "nemoguardrails.kb",
+        ):
+            logging.getLogger(_logger_name).setLevel(logging.WARNING)
+
         print(f"⏳ Loading NeMo Guardrails from {config_path}...")
 
         if not os.path.exists(config_path):

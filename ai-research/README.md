@@ -36,12 +36,13 @@ the app still boots and serves queries — only async ingestion job-status track
 Input query (X-User-Id header)
    │
    ▼
-┌──────────────────────────────────────────┐
-│ Triage  (ONE LLM call · evaluator-model)  │  input safety + intent + relevance + query rewrite
-│  • NeMo Guardrails (embeddings, optional, USE_NEMO_GUARDRAILS)
-│  • blocked → rejection answer, END        │
-└──────────────────────────────────────────┘
-   │ safe → GREETING: END · SUMMARY: summarize · RAG: ▼
+┌────────────────────────────────────────────┐
+│ Triage                                     │
+│  1. INPUT GUARDRAIL: NeMo Guardrails       │  embeddings, ALWAYS on, no LLM call
+│     · blocked → rejection answer, END      │
+│  2. LLM CALL (cheap-model): intent routing │  GREETING / RAG / SUMMARY + query rewrite
+│     · GREETING → END · SUMMARY → summarize │
+└────────────────────────────────────────────┘
    ▼ RAG
 ┌─────────────────────────────┐
 │ Retriever (Qdrant Cloud)     │  vector, wide (TOP_K_RETRIEVAL=15)
@@ -53,15 +54,23 @@ Input query (X-User-Id header)
 └─────────────────────────────┘
    ▼
 ┌─────────────────────────────┐
-│ Context Assembler            │  chunks → formatted context
+│ Context Assembler            │  chunks → formatted context (no LLM)
 └─────────────────────────────┘
+   ▼
+┌────────────────────────────────────────────┐
+│ Context Check (ONE LLM call · evaluator)   │  is retrieved context SAFE (no prompt
+│                                            │  injection)? does it SUPPORT the query?
+│  · unsafe / unsupported → rejection, END   │
+└────────────────────────────────────────────┘
    ▼
 ┌──────────────────────────────────────────┐
 │ Generator (ONE LLM call · strong-model)   │  draft cited answer
 └──────────────────────────────────────────┘
    ▼
 ┌──────────────────────────────────────────┐
-│ Evaluate (ONE LLM call · evaluator-model) │  citation validation + output safety + ANSWER CRITIQUE
+│ Output Guardrails · Evaluate (evaluator) │  citation validation + output safety
+│  (ONE LLM call, plus a deterministic     │  + ANSWER CRITIQUE
+│   citation-presence short-circuit)       │
 └──────────────────────────────────────────┘
    │ reroute="done"       → END
    │ reroute="generation" → Generator (with feedback)
@@ -69,27 +78,32 @@ Input query (X-User-Id header)
                               (reroutes bounded by MAX_REROUTES=3)
 ```
 
-**3 LLM calls on the happy path:** Triage → Generator → Evaluate. Retrieval, reranking,
-and context assembly add no LLM calls. The Evaluate node's **Answer Critique** decides
-whether the draft actually addresses the user's query; when it doesn't, it reroutes to
-Retrieval (better context) or Generation (regenerate with feedback), capped to avoid loops.
+**4 LLM calls on the happy path:** Triage routing (cheap) → Context Check (evaluator) →
+Generator (strong) → Evaluate (evaluator). NeMo input guardrail and retrieval/rerank/assembly
+add no LLM calls. The Context Check gates generation on context safety + relevance before the
+expensive strong-model call; the Evaluate node's **Answer Critique** decides whether the draft
+actually addresses the user's query and reroutes to Retrieval (better context) or Generation
+(regenerate with feedback), capped to avoid loops.
 
 - **Vector store:** Qdrant Cloud (`retrieval/vector_store.py`) — idempotent collection
   creation, keyword payload indexes on `user_id` / `document_id`. No local DB artifacts.
 - **Rerank:** FlashRank (`retrieval/reranker.py`) — module-level singleton; wide vector
   retrieval → narrow rerank.
-- **LLM calls:** via LiteLLM gateway (`llm_gateway/router.py`) — `evaluator-model`
-  (triage + evaluate), `strong-model` (generation), `cheap-model` (summary map phase).
+- **LLM calls:** via LiteLLM gateway (`llm_gateway/router.py`) — `cheap-model` (intent
+  routing + query rewrite + summary map), `evaluator-model` (context check + output
+  guardrail/evaluate), `strong-model` (generation + summary reduce).
 - **Observability:** Logfire (`observability.py`) — FastAPI + per-node spans + counters
-  (`guardrail_blocked`, `unsupported_query`, `validator_retry`); LangSmith — node-named
-  run tracing, env wired from `settings` before the graph compiles.
+  (`guardrail_blocked`, `context_unsafe`, `context_unsupported`, `unsupported_query`,
+  `validator_retry`); LangSmith — node-named run tracing, env wired from `settings` before
+  the graph compiles.
 
-> **Design notes (kept deviations):** NeMo Guardrails is available but off by default
-> (`USE_NEMO_GUARDRAILS=false`) — the LLM-based safety check is primary because NeMo
-> embeddings similarity produced false positives. Domain relevance (`is_supported=false`)
-> does **not** hard-block; off-topic queries route to retrieval and are handled by the
-> "no results" path. The mid-pipeline context-injection gate was folded into Triage/Eval;
-> first-line defense against untrusted document text stays in the generator's system prompt.
+> **Design notes (kept deviations):** NeMo Guardrails runs on **every** input as the first
+> line of input safety (embeddings-based, no LLM call). On a guardrail service error,
+> `GUARDRAIL_FAIL_MODE` decides: `closed` (default) blocks, `open` proceeds. Domain relevance
+> (`is_supported=false`) does **not** hard-block; off-topic queries route to retrieval and are
+> handled by the context-check no-support path. The generator's system prompt ("CONTEXT is
+> untrusted") remains the first-line defense against malicious document text, backed by the
+> explicit Context Check node.
 
 ---
 

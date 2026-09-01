@@ -180,7 +180,6 @@ _RUNTIME_KNOBS = {
     "CHUNK_SIZE": ("int", 64, 4096),
     "CHUNK_OVERLAP": ("int", 0, 1024),
     "GUARDRAIL_FAIL_MODE": ("enum", ["closed", "open"]),
-    "USE_NEMO_GUARDRAILS": ("bool", None),
 }
 
 class ConfigUpdate(BaseModel):
@@ -189,7 +188,6 @@ class ConfigUpdate(BaseModel):
     CHUNK_SIZE: int | None = None
     CHUNK_OVERLAP: int | None = None
     GUARDRAIL_FAIL_MODE: str | None = None
-    USE_NEMO_GUARDRAILS: bool | None = None
 
 
 def _config_view() -> dict:
@@ -199,7 +197,6 @@ def _config_view() -> dict:
         "CHUNK_SIZE": settings.CHUNK_SIZE,
         "CHUNK_OVERLAP": settings.CHUNK_OVERLAP,
         "GUARDRAIL_FAIL_MODE": settings.GUARDRAIL_FAIL_MODE,
-        "USE_NEMO_GUARDRAILS": settings.USE_NEMO_GUARDRAILS,
         "QDRANT_COLLECTION_NAME": settings.QDRANT_COLLECTION_NAME,
         "ENV": settings.ENV,
     }

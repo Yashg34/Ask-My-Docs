@@ -26,6 +26,11 @@ class GraphState(TypedDict):
     retrieved_chunks: List[Dict[str, Any]]
     formatted_context: str
 
+    # Context check (post-retrieval gate: context safe? supports query?)
+    context_checked: bool
+    context_safe: bool
+    context_supports_query: bool
+
     # Generation and validation loop
     draft_answer: Optional[str]
     validation_feedback: Optional[str]
