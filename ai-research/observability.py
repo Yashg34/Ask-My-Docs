@@ -38,7 +38,7 @@ def increment_counter(counter_name: str, value: int = 1):
     if lf is None:
         return
     try:
-        lf.metric(f"{counter_name}_counter").add(value)
+        lf.metric_counter(f"{counter_name}_counter").add(value)
     except Exception as e:
         print(f"⚠️ Failed to record counter '{counter_name}': {e}")
 
