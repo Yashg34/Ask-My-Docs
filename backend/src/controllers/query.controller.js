@@ -1,7 +1,6 @@
 const QueryRecord = require('../models/QueryRecord.model');
 const Document = require('../models/Document.model');
 const aiClient = require('../lib/aiClient');
-const { streamQueryStatus } = require('../services/statusStream');
 
 exports.askQuery = async (req, res) => {
     try {
@@ -31,12 +30,6 @@ exports.askQuery = async (req, res) => {
                 return res.status(404).json({ error: { code: 404, message: "Document not found" } });
             }
             payload.document_id = documentId;
-        }
-
-        // Start relaying real-time RAG progress to the frontend's Socket.IO
-        // room BEFORE forwarding, so subscription is live when the graph runs.
-        if (queryId) {
-            streamQueryStatus(queryId, req.user.id);
         }
 
         const fastApiResponse = await aiClient.post('/query', payload, {

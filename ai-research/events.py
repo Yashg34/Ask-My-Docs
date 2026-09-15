@@ -1,9 +1,8 @@
 """Real-time event streaming for the RAG query pipeline.
 
-LangGraph nodes push {stage, message} events here; the FastAPI SSE endpoint
-(`/query/events/{query_id}`) streams them to the Node.js gateway, which relays
-them to the frontend over Socket.IO. Uses in-process queues so no Redis is
-required for single-process deployments.
+LangGraph nodes push {stage, message} events here and the FastAPI SSE endpoint
+(`/query/events/{query_id}`) streams them to the Node.js gateway. Uses
+in-process queues so no Redis is required for single-process deployments.
 """
 
 import queue as _queue

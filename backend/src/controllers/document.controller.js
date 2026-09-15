@@ -2,7 +2,6 @@ const Document = require('../models/Document.model');
 const aiClient = require('../lib/aiClient');
 const FormData = require('form-data');
 const crypto = require('crypto');
-const { streamIngestStatus } = require('../services/statusStream');
 
 // Returns 202 as soon as the DB record exists and hands ingestion to FastAPI in
 // the background (no disk staging); status polling never re-submits.
@@ -86,10 +85,6 @@ async function _ingestInBackground(doc, fileBuffer, ownerId) {
             { returnDocument: 'after' }
         );
         console.log(`✅ Handed ${doc._id} to FastAPI (job ${resp.data.job_id})`);
-
-        // Relay real-time ingestion status from FastAPI to the frontend via
-        // Socket.IO (FastAPI SSE -> this relay -> doc room).
-        streamIngestStatus(doc._id.toString(), resp.data.job_id, ownerId);
 
     } catch (e) {
         console.error(`⏳ Failed to start ingestion for ${doc._id}:`, e.message);

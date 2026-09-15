@@ -98,7 +98,7 @@ class QueryRequest(BaseModel):
     top_n: int = 5       # Post-reranking (sends the top-N best chunks to Gemini; default matches backend/README)
     threshold: float = 0.05
     chat_history: List[dict] = Field(default_factory=list)
-    query_id: str = ""   # Client-generated id for real-time progress (Socket.IO room key)
+    query_id: str = ""
 
 class QueryResponse(BaseModel):
     query: str

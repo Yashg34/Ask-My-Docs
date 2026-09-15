@@ -48,7 +48,7 @@ The system is split into three cooperating layers:
 graph TD
     subgraph "MERN Layer (Frontend & Backend)"
         User((User)) -->|1. Upload Docs / Ask Question| React[React Frontend]
-        React -->|2. REST / WebSocket| Node[Node.js + Express API]
+        React -->|2. REST| Node[Node.js + Express API]
         Node -->|Save/Load State| Mongo[(MongoDB)]
     end
 
@@ -88,10 +88,10 @@ graph TD
     end
 
     Gateway -->|7. Return to Graph| Done
-    Done -->|8. Stream Result| Node
-    Node -.->|WebSockets| React
+    Done -->|8. Return Result| Node
+    Node -->|9. HTTP Response| React
 
-    Gateway -.->|9. Async Logging| LangSmith[(LangSmith Traces)]
+    Gateway -.->|10. Async Logging| LangSmith[(LangSmith Traces)]
     LangSmith -.->|10. Batch Scoring| Eval[Ragas Evaluators]
     Eval -.->|Metrics: Faithfulness, Context Precision| CI([CI/CD Quality Gate])
 ```
@@ -104,7 +104,7 @@ graph TD
 4. At query time, the **Retriever node** queries both indexes; the **Reranker** merges and reorders results before the **Context Assembler** builds the prompt.
 5. The **Generator node** produces a cited answer, and the **Citation Validator node** checks every citation against the retrieved evidence — looping back to regenerate (up to a cap) if validation fails.
 6. All model calls pass through the **LiteLLM gateway**: semantic cache, input guardrails, model router, and output guardrails.
-7. The final answer streams back through Node.js to the React client over WebSockets.
+7. The final answer is returned via the REST API response to the client.
 8. Every gateway call is asynchronously logged to **LangSmith**; **Ragas** evaluators batch-score traces for faithfulness and context precision, feeding a **CI/CD quality gate**.
 
 ---
@@ -129,7 +129,7 @@ The repository has two independently-run services: a Node/Express API gateway (`
 ```
 Ask-My-Docs/
 ├── backend/                          # Node.js/Express API gateway (auth, docs, MongoDB, proxies to ai-research)
-│   ├── server.js                     # Entry point — Express app, Mongo connection, Socket.IO attach
+│   ├── server.js                     # Entry point — Express app and MongoDB connection
 │   ├── .env.sample                   # PORT, MONGODB_URI, JWT_SECRET, FASTAPI_URL, CORS_ORIGIN
 │   └── src/
 │       ├── routes/
@@ -146,10 +146,8 @@ Ask-My-Docs/
 │       │   ├── User.model.js
 │       │   ├── Document.model.js
 │       │   └── QueryRecord.model.js
-│       ├── lib/
-│       │   └── aiClient.js           # HTTP client that calls the ai-research FastAPI service
-│       └── services/
-│           └── statusStream.js       # Socket.IO — pushes live ingestion status to clients
+│       └── lib/
+│           └── aiClient.js           # HTTP client that calls the ai-research FastAPI service
 │
 ├── ai-research/                      # Python/FastAPI + LangGraph RAG pipeline
 │   ├── main.py                       # FastAPI entry point (uvicorn target: `main:app`)
@@ -258,7 +256,7 @@ cd backend
 npm run dev
 ```
 
-This starts the Express server (default `http://localhost:5000`) with MongoDB connected and Socket.IO attached, exposing `/auth`, `/documents`, `/query`, and `/health`.
+This starts the Express server (default `http://localhost:5000`) with MongoDB connected, exposing `/auth`, `/documents`, `/query`, and `/health`.
 
 ### Testing with Postman / Thunder Client
 
