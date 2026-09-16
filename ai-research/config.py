@@ -10,6 +10,9 @@ for _stream in (sys.stdout, sys.stderr):
     except (AttributeError, ValueError):
         pass
 
+from pathlib import Path
+
+from dotenv import load_dotenv
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -58,13 +61,6 @@ class Settings(BaseSettings):
     GUARDRAIL_FAIL_MODE: str = Field(
         default="closed",
         description="Guardrail behavior on LLM error: 'closed' (block, default) or 'open' (proceed)"
-    )
-
-    # Optional token guarding the soft-config endpoints (sent as X-Admin-Token);
-    # empty = open (dev convenience).
-    ADMIN_API_TOKEN: str = Field(
-        default="",
-        description="Optional bearer token for the soft-config endpoints (sent as X-Admin-Token)"
     )
 
     # ========== Observability (Logfire + LangSmith) ==========
@@ -131,6 +127,7 @@ class Settings(BaseSettings):
     )
 
 
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 try:
     settings = Settings()

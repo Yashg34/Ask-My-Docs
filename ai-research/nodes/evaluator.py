@@ -1,6 +1,7 @@
 """Output evaluation: citation validation + safety check + answer critique in ONE call."""
 
 import re
+from pathlib import Path
 from typing import Literal
 import yaml
 from graph.state import GraphState
@@ -8,7 +9,7 @@ from llm_gateway.router import llm_router
 from pydantic import BaseModel, Field
 from nodes.utils import parse_structured
 
-with open("guardrails/output_guardrails.yaml", "r") as f:
+with open(Path(__file__).resolve().parent.parent / "guardrails/output_guardrails.yaml", "r") as f:
     _OUTPUT_POLICY = yaml.safe_load(f)["policies"][0]
 
 

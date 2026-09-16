@@ -6,3 +6,4 @@ node_modules/
 .flashrank_cache/
 langgraph_architecture.png
 chroma_db/
+evaluation/results/

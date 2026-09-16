@@ -1,0 +1,13 @@
+{
+  "name": "ask-my-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo root for Ask-My-Docs. npm install here once — backend/ (and future frontend/) share the single root node_modules.",
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "backend": "npm run dev --workspace backend",
+    "install:all": "npm install"
+  }
+}

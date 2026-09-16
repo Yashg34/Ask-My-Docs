@@ -190,6 +190,10 @@ Ask-My-Docs/
 │   ├── requirements.txt
 │   └── README.md                     # Full API contract + pipeline diagram for this service
 │
+├── package.json                      # Monorepo root — npm workspaces so all JS deps
+│                                     #   (backend/ + future frontend/) hoist into ONE
+│                                     #   shared root `node_modules/`
+├── .env.sample                       # SINGLE repo-root env template for every service
 └── .gitignore
 ```
 
@@ -212,26 +216,44 @@ git clone https://github.com/Yashg34/Ask-My-Docs.git
 cd Ask-My-Docs
 ```
 
+### 1a. One shared set of Node modules (backend/ + future frontend/)
+
+All JavaScript dependencies install **once into the repo-root `node_modules/`** via the
+root `package.json` (npm workspaces). Node's own module resolution walks up to that folder,
+so `backend/` (and any future `frontend/`) find their packages there — no per-service install.
+
+```bash
+npm install          # run once at the repository root; creates root/package-lock.json + node_modules/
+```
+
+> **Adding a `frontend/` later:** give it its own `package.json`, add `"frontend"` to the
+> `workspaces` array in the root `package.json`, then run `npm install` again (at the root).
+
+### 1b. One shared environment file
+
+A **single root `.env`** is read by every service — no more filling three files separately.
+Copy the root template once and fill it in; each service also falls back to its own local
+`.env` if you'd prefer to keep an override there.
+
+```bash
+cp .env.sample .env    # at the repository root — fill in all values in one place
+```
+
 ### 2. Set up the AI service (`ai-research/`)
 
 ```bash
 cd ai-research
-cp .env.sample .env
-# Fill in: GROQ_API_KEY, GEMINI_API_KEY, QDRANT_URL, QDRANT_API_KEY (all required)
-# Optional: REDIS_URL, LOGFIRE_TOKEN, LANGSMITH_API_KEY
-
 pip install -r requirements.txt
+# Env variables come from the root /.env (GROQ_API_KEY, GEMINI_API_KEY,
+# QDRANT_URL, QDRANT_API_KEY are required). Launch from this directory:
+uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 ### 3. Set up the API gateway (`backend/`)
 
 ```bash
-cd ../backend
-cp .env.sample .env
-# Fill in: MONGODB_URI, JWT_SECRET
-# FASTAPI_URL defaults to http://127.0.0.1:8000 — update if ai-research runs elsewhere
-
-npm install
+cd backend
+npm run dev          # deps resolve from the root node_modules/; env from the root /.env
 ```
 
 ---

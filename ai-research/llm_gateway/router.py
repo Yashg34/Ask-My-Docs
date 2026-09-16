@@ -1,6 +1,7 @@
 import os
 import logging
 import warnings
+from pathlib import Path
 from config import settings
 
 logging.getLogger('LiteLLM').setLevel(logging.ERROR)
@@ -11,7 +12,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 import yaml
 from litellm import Router
 
-with open("llm_gateway/litellm_config.yaml", "r") as file:
+with open(Path(__file__).resolve().parent / "litellm_config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
 llm_router = Router(

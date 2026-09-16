@@ -1,6 +1,7 @@
 """NeMo Guardrails service: fast, embeddings-based input safety checks."""
 
 from typing import Optional
+from pathlib import Path
 from pydantic import BaseModel, Field
 from nemoguardrails import RailsConfig, LLMRails
 from config import settings
@@ -24,7 +25,7 @@ class GuardrailResult(BaseModel):
 class NeMoGuardrailsService:
     """Singleton service running NeMo Guardrails input safety checks."""
 
-    def __init__(self, config_path: str = "guardrails"):
+    def __init__(self, config_path: str = str(Path(__file__).resolve().parent)):
         # NeMo's colang runtime + action dispatcher log at INFO by default, which
         # floods the terminal per request (event traces, action registrations).
         # Operational chatter, not errors - silence below WARNING.

@@ -14,10 +14,13 @@ be updated here and in `../backend` consumers together.
 
 ```bash
 cd ai-research
-cp .env.sample .env        # fill in real values (Qdrant Cloud, LLM keys required)
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
+
+Environment is now read from the **single repo-root `/.env`** (see `/.env.sample` at the
+repository root); `config.py` loads that file, then falls back to this directory's own
+`.env` for any local overrides.
 
 - `ENV=development` enables uvicorn auto-reload.
 - `LOGFIRE_TOKEN` empty → Logfire disabled (app runs fine without it).
@@ -194,7 +197,7 @@ Common codes: `400` (bad request / invalid file), `413` (file too large), `422`
 
 ## Env contract
 
-`.env.sample` is the single source of truth and is 1:1 with `Settings` in `config.py`.
-Every variable used by the app is listed there; nothing else is read. Required
+Environment is loaded from the **single repo-root `/.env`** (see `/.env.sample` at the
+repository root), 1:1 with `Settings` in `config.py`. Required
 (no default): `GROQ_API_KEY`, `GEMINI_API_KEY`, `QDRANT_URL`, `QDRANT_API_KEY`.
 `REDIS_URL` is optional (defaults to local Redis; app degrades gracefully if absent).

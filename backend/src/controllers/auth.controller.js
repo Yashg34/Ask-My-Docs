@@ -48,9 +48,15 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
+    
+        if (!email?.trim() || !password?.trim()) {
+            return res.status(400).json({ error: { code: 400, message: 'Email and password are required' } });
+        }
+
+        const emailNorm = email.toLowerCase().trim();
         // Lookup with the same normalization register applies, else a case
         // difference would silently 401.
-        const user = await User.findOne({ email: email?.toLowerCase().trim() });
+        const user = await User.findOne({ email: emailNorm });
 
         if (!user || !(await user.comparePassword(password))) {
             return res.status(401).json({ error: { code: 401, message: 'Invalid email or password' } });
