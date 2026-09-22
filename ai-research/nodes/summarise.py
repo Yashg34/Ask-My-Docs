@@ -6,7 +6,7 @@ from config import settings
 from retrieval.vector_store import get_qdrant_client
 
 CHUNK_BATCH_SIZE = 40
-MAX_CONCURRENT_BATCHES = 5  # Cap concurrent LLM calls to avoid rate-limit errors
+MAX_CONCURRENT_BATCHES = 5
 
 
 def _fetch_document_chunks(user_id: str, document_id: str):
@@ -110,8 +110,7 @@ async def summarize_document(state: GraphState):
             "is_valid": True
         }
 
-    # Sort into reading order (by page)
-    chunks.sort(key=lambda c: c["metadata"].get("page", 0))
+    chunks.sort(key=lambda c: (c["metadata"].get("page_start", 0), c.get("chunk_id", "")))
 
     batches = []
     for i in range(0, len(chunks), CHUNK_BATCH_SIZE):

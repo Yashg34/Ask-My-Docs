@@ -12,6 +12,36 @@ from nodes.utils import parse_structured
 with open(Path(__file__).resolve().parent.parent / "guardrails/output_guardrails.yaml", "r") as f:
     _OUTPUT_POLICY = yaml.safe_load(f)["policies"][0]
 
+# Matches [doc, Page X] and [doc, Pages X-Y] (en-dash or hyphen). Case-insensitive
+# on "Page(s)". Anything else in brackets (markdown links, array[i], [1] footnotes)
+# does not match and is correctly ignored as "not a citation attempt".
+_CITATION_RE = re.compile(r"\[([^,\]]+),\s*Pages?\s*(\d+)(?:\s*[-–]\s*(\d+))?\]", re.IGNORECASE)
+
+
+def extract_citations(answer: str) -> set[tuple[str, int, int]]:
+    """Returns {(doc_name, page_start, page_end)}; single-page cites have start == end."""
+    out = set()
+    for doc, p0, p1 in _CITATION_RE.findall(answer):
+        lo = int(p0)
+        out.add((doc.strip(), lo, int(p1) if p1 else lo))
+    return out
+
+
+def _valid_page_targets(retrieved_chunks: list) -> set[tuple[str, int]]:
+    """Every (doc_name, page) a retrieved chunk actually covers, expanding
+    page_start..page_end for chunks that span a page break."""
+    targets = set()
+    for c in retrieved_chunks:
+        meta = c.get("metadata", {})
+        name = meta.get("document_name", meta.get("document_id", "Doc"))
+        lo = meta.get("page_start", meta.get("page"))
+        hi = meta.get("page_end", lo)
+        if lo is None:
+            continue
+        for p in range(int(lo), int(hi) + 1):
+            targets.add((name, p))
+    return targets
+
 
 class Evaluation(BaseModel):
     is_valid: bool = Field(description="True if the answer is grounded, correct, and complete.")
@@ -33,20 +63,26 @@ async def evaluate(state: GraphState):
         # Empty context — nothing to validate or critique.
         return {"is_valid": True, "reroute": "done"}
 
-    # Deterministic citation checks — cheap short-circuits that avoid an LLM call.
-    citations = re.findall(r"\[.+?\]", draft_answer)
-    if not citations:
+    cited = extract_citations(draft_answer)
+    if not cited:
         return {
             "is_valid": False,
             "reroute": "generation",
             "validation_feedback": "You failed to include any inline citations. You MUST cite your sources using the [Document Name, Page X] format.",
         }
-    for citation in citations:
-        if citation not in formatted_context:
+
+    targets = _valid_page_targets(state.get("retrieved_chunks", []))
+    for doc, lo, hi in cited:
+        bad_pages = [p for p in range(lo, hi + 1) if (doc, p) not in targets]
+        if bad_pages:
             return {
                 "is_valid": False,
                 "reroute": "generation",
-                "validation_feedback": f"You cited {citation}, but this document/page does not exist in the provided context. Only cite from the provided sources.",
+                "validation_feedback": (
+                    f"You cited [{doc}, Page{'s' if hi > lo else ''} {lo}"
+                    f"{f'-{hi}' if hi > lo else ''}], but page(s) {bad_pages} of that "
+                    f"document are not in the provided context. Only cite from the provided sources."
+                ),
             }
 
     prompt = f"""

@@ -7,3 +7,6 @@ node_modules/
 langgraph_architecture.png
 chroma_db/
 evaluation/results/
+evaluation/runs
+qdrant_dataset.json
+golden_dataset.json

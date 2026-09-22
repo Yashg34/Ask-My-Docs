@@ -1,27 +1,45 @@
+import json
 import os
-import shutil
 import time
 import traceback
 import uuid
-import numpy as np
-from pathlib import Path
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Header, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+from typing import List, Optional
+
+import numpy as np
+import redis.asyncio as aioredis
+from fastapi import (
+    BackgroundTasks,
+    FastAPI,
+    File,
+    Form,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List
 from starlette.concurrency import run_in_threadpool
 
 from config import settings
-from ingestion.parser import parse_pdf_slice
 from ingestion.chunker import chunk_pages
 from ingestion.indexer import build_indexes
-from events import register_query_events, clear_query_events, mark_query_done, latest_query_event
-from observability import setup_logfire, instrument_fastapi, setup_langsmith
+from ingestion.parser import parse_pdf_slice
+from observability import instrument_fastapi, setup_langsmith, setup_logfire
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+UPLOAD_DIR = Path("data")
+JOB_TTL_SECONDS = 86400
 
 graph_app = None
+redis_client: Optional[aioredis.Redis] = None
+
+
+# ── App lifecycle ────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,15 +55,16 @@ async def lifespan(app: FastAPI):
 
     print("✅ All components loaded successfully!")
     yield
-    print("🛑 Shutting down AI components...")
-    try:
-        client = await get_redis_client()
-        await client.close()
-        print("✅ Redis connection closed.")
-    except Exception as e:
-        print(f"⚠️ Error closing Redis: {e}")
 
-# Pass the lifespan context manager to FastAPI
+    print("🛑 Shutting down AI components...")
+    if redis_client is not None:
+        try:
+            await redis_client.close()
+            print("✅ Redis connection closed.")
+        except Exception as e:
+            print(f"⚠️ Error closing Redis: {e}")
+
+
 app = FastAPI(title="Ask My Docs", lifespan=lifespan)
 
 _origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()] or ["*"]
@@ -57,8 +76,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def _error_response(status_code: int, message: str):
-    return JSONResponse(status_code=status_code, content={"error": {"code": status_code, "message": message}})
+
+# ── Error handling ───────────────────────────────────────────────────────────
+
+def _error_response(status_code: int, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": {"code": status_code, "message": message}},
+    )
 
 
 @app.exception_handler(RequestValidationError)
@@ -79,6 +104,7 @@ async def _unhandled_error_handler(request: Request, exc: Exception):
     traceback.print_exc()
     return _error_response(500, "Internal server error")
 
+
 def _json_safe(value):
     """Recursively coerce numpy scalars to native Python so Pydantic/JSON
     serialization never trips on np.float32 etc. (e.g. FlashRank rerank scores)."""
@@ -91,14 +117,16 @@ def _json_safe(value):
     return value
 
 
+# ── Schemas ──────────────────────────────────────────────────────────────────
+
 class QueryRequest(BaseModel):
     query: str
     document_id: Optional[str] = None
     top_k: int = 15      # First-stage retrieval (wide fetch from Qdrant, narrowed by FlashRank)
-    top_n: int = 5       # Post-reranking (sends the top-N best chunks to Gemini; default matches backend/README)
+    top_n: int = 5       # Post-reranking (sends the top-N best chunks to Gemini)
     threshold: float = 0.05
     chat_history: List[dict] = Field(default_factory=list)
-    query_id: str = ""
+
 
 class QueryResponse(BaseModel):
     query: str
@@ -106,16 +134,24 @@ class QueryResponse(BaseModel):
     latency_seconds: float
     retrieved_chunks: list
 
-import json
-import redis.asyncio as aioredis
 
-redis_client = None
-_job_store = {}
-_REDIS_AVAILABLE = None  # None = unknown, True/False after first probe
-_LAST_REDIS_PROBE = 0.0  # monotonic timestamp of the last probe
-_REDIS_REPROBE_SECONDS = 30  # re-check a down Redis this often (e.g. once Docker tries it)
+class ConfigUpdate(BaseModel):
+    TOP_K_RETRIEVAL: Optional[int] = None
+    TOP_K_RERANK: Optional[int] = None
+    CHUNK_SIZE: Optional[int] = None
+    CHUNK_OVERLAP: Optional[int] = None
+    GUARDRAIL_FAIL_MODE: Optional[str] = None
 
-async def get_redis_client():
+
+# ── Job store (Redis, with in-memory fallback) ───────────────────────────────
+
+_job_store: dict[str, str] = {}
+_REDIS_AVAILABLE: Optional[bool] = None   # None = unknown, True/False after first probe
+_LAST_REDIS_PROBE = 0.0                   # monotonic timestamp of the last probe
+_REDIS_REPROBE_SECONDS = 30               # re-check a down Redis this often
+
+
+async def get_redis_client() -> aioredis.Redis:
     global redis_client
     if redis_client is None:
         # Short timeouts so a down/hung Redis never holds up a request.
@@ -126,6 +162,7 @@ async def get_redis_client():
             socket_timeout=2,
         )
     return redis_client
+
 
 async def _redis_up() -> bool:
     """Probe Redis without blocking; re-probe a down Redis every 30s so a
@@ -148,94 +185,41 @@ async def _redis_up() -> bool:
     _LAST_REDIS_PROBE = now
     return _REDIS_AVAILABLE
 
-async def set_job(job_id: str, data: dict):
+
+async def set_job(job_id: str, data: dict) -> None:
     payload = json.dumps(data)
     if await _redis_up():
         try:
-            await (await get_redis_client()).set(f"job:{job_id}", payload, ex=86400)
+            await (await get_redis_client()).set(f"job:{job_id}", payload, ex=JOB_TTL_SECONDS)
             return
         except Exception as e:
             print(f"⚠️ Redis set failed ({e}); falling back to memory for job {job_id}")
     _job_store[job_id] = payload
 
-async def get_job(job_id: str):
+
+async def get_job(job_id: str) -> Optional[dict]:
     if await _redis_up():
         try:
             raw = await (await get_redis_client()).get(f"job:{job_id}")
-            return json.loads(raw) if raw else None
+            if raw:
+                return json.loads(raw)
         except Exception as e:
             print(f"⚠️ Redis get failed ({e}); checking memory for job {job_id}")
     raw = _job_store.get(job_id)
     return json.loads(raw) if raw else None
 
 
-# ── Real-time status streaming (SSE) ─────────────────────────────────────────
-# Ingestion runs in a sync thread pool, so we use a thread-safe queue to bridge
-# status events from the worker thread into the async SSE endpoint.
-
-import asyncio
-import queue as _queue
-
-_job_queues: dict[str, _queue.Queue] = {}
-
-
-def _emit_status_sync(job_id: str, status: str, message: str = ""):
-    """Push a status event from the sync worker thread into the SSE queue."""
-    q = _job_queues.get(job_id)
-    if q:
-        q.put({"status": status, "message": message})
-
-
-@app.get("/ingest/events/{job_id}")
-async def ingest_events(job_id: str):
-    """SSE stream that pushes real-time ingestion status to the frontend."""
-    q: _queue.Queue = _queue.Queue()
-    _job_queues[job_id] = q
-
-    async def _stream():
-        try:
-            # First send the current persisted status (handles connecting late).
-            current = await get_job(job_id)
-            if current:
-                yield f"data: {json.dumps(current)}\n\n"
-                if current.get("status") in ("COMPLETED", "FAILED"):
-                    return
-
-            last_status = current.get("status") if current else None
-            while True:
-                try:
-                    event = q.get(timeout=0.5)
-                    last_status = event["status"]
-                    yield f"data: {json.dumps(event)}\n\n"
-                    if last_status in ("COMPLETED", "FAILED"):
-                        return
-                except _queue.Empty:
-                    # Fallback: the worker emits to the queue, but the terminal
-                    # result is only persisted to the job store AFTER the worker
-                    # finishes. Poll the store too so a late-connecting client
-                    # still observes the PROCESSING -> COMPLETED/FAILED transition.
-                    job = await get_job(job_id)
-                    status = job.get("status") if job else None
-                    if status and status != last_status:
-                        last_status = status
-                        yield f"data: {json.dumps(job)}\n\n"
-                        if status in ("COMPLETED", "FAILED"):
-                            return
-                    # Heartbeat to keep the connection alive
-                    yield f": heartbeat\n\n"
-        finally:
-            _job_queues.pop(job_id, None)
-
-    return StreamingResponse(_stream(), media_type="text/event-stream")
+# ── Health ───────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health():
     return {"status": "Ask My Docs pipeline running smoothly"}
 
 
-# ============ Soft-config endpoints (runtime, no restart) ============
+# ── Soft-config endpoints (runtime, no restart) ──────────────────────────────
 # Whitelisted knobs, validated then live-assigned to `settings`; nodes read them
 # at call time. Guarded by ADMIN_API_TOKEN (X-Admin-Token header) when set.
+
 _RUNTIME_KNOBS = {
     "TOP_K_RETRIEVAL": ("int", 1, 100),
     "TOP_K_RERANK": ("int", 1, 50),
@@ -243,13 +227,6 @@ _RUNTIME_KNOBS = {
     "CHUNK_OVERLAP": ("int", 0, 1024),
     "GUARDRAIL_FAIL_MODE": ("enum", ["closed", "open"]),
 }
-
-class ConfigUpdate(BaseModel):
-    TOP_K_RETRIEVAL: int | None = None
-    TOP_K_RERANK: int | None = None
-    CHUNK_SIZE: int | None = None
-    CHUNK_OVERLAP: int | None = None
-    GUARDRAIL_FAIL_MODE: str | None = None
 
 
 def _config_view() -> dict:
@@ -264,7 +241,7 @@ def _config_view() -> dict:
     }
 
 
-def _require_admin(request: Request):
+def _require_admin(request: Request) -> None:
     if settings.ADMIN_API_TOKEN and request.headers.get("X-Admin-Token") != settings.ADMIN_API_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid or missing admin token")
 
@@ -280,71 +257,126 @@ async def patch_config(request: Request, updates: ConfigUpdate):
     _require_admin(request)
     applied = {}
     for field, value in updates.model_dump(exclude_none=True).items():
-        kind = _RUNTIME_KNOBS[field][0]
+        kind, *bounds = _RUNTIME_KNOBS[field]
         if kind == "int":
-            lo, hi = _RUNTIME_KNOBS[field][1], _RUNTIME_KNOBS[field][2]
+            lo, hi = bounds
             if not (lo <= value <= hi):
                 raise HTTPException(status_code=422, detail=f"{field} must be between {lo} and {hi}")
-        elif kind == "enum" and value not in _RUNTIME_KNOBS[field][1]:
-            raise HTTPException(status_code=422, detail=f"{field} must be one of {_RUNTIME_KNOBS[field][1]}")
+        elif kind == "enum" and value not in bounds[0]:
+            raise HTTPException(status_code=422, detail=f"{field} must be one of {bounds[0]}")
         setattr(settings, field, value)
         applied[field] = value
     print(f"⚙️ Soft-config updated: {applied}")
     return {"applied": applied, "config": _config_view()}
 
-def _run_ingestion_sync(file_path: str, user_id: str, document_id: str, original_filename: str, job_id: str = None) -> dict:
+
+# ── Ingestion ────────────────────────────────────────────────────────────────
+
+def _run_ingestion_sync(file_path: str, user_id: str, document_id: str, original_filename: str) -> dict:
     """Blocking ingestion work (parse, chunk, embed, Qdrant write). Runs in a
     worker thread so it never freezes the event loop."""
     print(f"🔄 Starting background ingestion for {original_filename}...")
     start_time = time.time()
     try:
-        _emit_status_sync(job_id, "PARSING", "Extracting text from PDF...")
         pages = parse_pdf_slice(file_path)
-
-        _emit_status_sync(job_id, "CHUNKING", "Splitting document into chunks...")
         chunks = chunk_pages(
             pages=pages,
             user_id=user_id,
             document_id=document_id,
-            document_name=original_filename
+            document_name=original_filename,
         )
+        if not chunks:
+            raise ValueError("No extractable text found. This PDF may be scanned or image-only.")
 
-        _emit_status_sync(job_id, "INDEXING", "Embedding and indexing chunks...")
         build_indexes(chunks)
 
         elapsed = round(time.time() - start_time, 2)
         print(f"✅ Successfully ingested '{original_filename}' in {elapsed}s!")
-        _emit_status_sync(job_id, "COMPLETED", f"Successfully ingested in {elapsed}s")
         return {"status": "COMPLETED", "message": f"Successfully ingested in {elapsed}s"}
     except Exception as e:
         print(f"❌ Ingestion pipeline failed for {original_filename}: {e}")
         traceback.print_exc()
-        _emit_status_sync(job_id, "FAILED", str(e))
         return {"status": "FAILED", "errorMessage": str(e)}
     finally:
-        if os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-            except OSError as rm_err:
-                print(f"⚠️ Could not remove temp file {file_path}: {rm_err}")
+        try:
+            os.remove(file_path)
+        except OSError as rm_err:
+            print(f"⚠️ Could not remove temp file {file_path}: {rm_err}")
 
 
 async def process_ingestion(file_path: str, user_id: str, document_id: str, original_filename: str, job_id: str):
-    """Background driver for the /ingest POST: offloads the blocking work to a
+    """Background driver for POST /ingest: offloads the blocking work to a
     thread pool, then persists the job result (Redis or memory fallback)."""
     try:
         result = await run_in_threadpool(
-            _run_ingestion_sync, file_path, user_id, document_id, original_filename, job_id
+            _run_ingestion_sync, file_path, user_id, document_id, original_filename
         )
     except Exception as e:
         print(f"❌ Ingestion driver failed for {original_filename}: {e}")
         traceback.print_exc()
-        _emit_status_sync(job_id, "FAILED", f"Unexpected driver error: {e}")
         result = {"status": "FAILED", "errorMessage": f"Unexpected driver error: {e}"}
+
     try:
         await set_job(job_id, result)
     except Exception as e:
         print(f"⚠️ Could not persist job status for {job_id}: {e}")
+
+
+def _save_upload(file: UploadFile, destination: Path) -> None:
+    """Stream the upload to disk, enforcing the size cap as we go."""
+    size = 0
+    try:
+        with open(destination, "wb") as buffer:
+            while chunk := file.file.read(1024 * 1024):
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail="File too large. Maximum size is 20MB.")
+                buffer.write(chunk)
+    except HTTPException:
+        destination.unlink(missing_ok=True)
+        raise
+    except Exception as e:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
+
+
+@app.post("/ingest")
+async def upload_and_ingest(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    document_id: str = Form(...),
+    x_user_id: str = Header(...),
+):
+    safe_name = Path(file.filename).name
+    if not safe_name.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+
+    magic_bytes = file.file.read(4)
+    file.file.seek(0)
+    if magic_bytes != b"%PDF":
+        raise HTTPException(status_code=400, detail="Invalid file format. Not a true PDF.")
+
+    job_id = uuid.uuid4().hex
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    file_path = UPLOAD_DIR / f"{job_id}_{safe_name}"
+    _save_upload(file, file_path)
+
+    await set_job(job_id, {"status": "PROCESSING", "message": "Ingestion started..."})
+    background_tasks.add_task(
+        process_ingestion,
+        file_path=str(file_path),
+        user_id=x_user_id,
+        document_id=document_id,
+        original_filename=safe_name,
+        job_id=job_id,
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "queued",
+        "message": f"Ingestion for '{safe_name}' has been queued.",
+    }
+
 
 @app.get("/ingest/status/{job_id}")
 async def get_ingest_status(job_id: str):
@@ -353,58 +385,11 @@ async def get_ingest_status(job_id: str):
         raise HTTPException(status_code=404, detail="Job not found")
     return job
 
-@app.post("/ingest")
-async def upload_and_ingest(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    document_id: str = Form(...),
-    x_user_id: str = Header(...)
-):
-    user_id = x_user_id
-    safe_name = Path(file.filename).name
-    if not safe_name.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
-        
-    magic_bytes = file.file.read(4)
-    file.file.seek(0)
-    if magic_bytes != b"%PDF":
-        raise HTTPException(status_code=400, detail="Invalid file format. Not a true PDF.")
-    
-    job_id = uuid.uuid4().hex
-    await set_job(job_id, {"status": "PROCESSING", "message": "Ingestion started..."})
-    os.makedirs("data", exist_ok=True)
-    file_path = os.path.join("data", f"{job_id}_{safe_name}")
-    
-    MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-    size = 0
-    try:
-        with open(file_path, "wb") as buffer:
-            while chunk := file.file.read(1024 * 1024):
-                size += len(chunk)
-                if size > MAX_UPLOAD_BYTES:
-                    buffer.close()
-                    os.remove(file_path)
-                    raise HTTPException(status_code=413, detail="File too large. Maximum size is 20MB.")
-                buffer.write(chunk)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
-        
-    background_tasks.add_task(
-        process_ingestion, 
-        file_path=file_path, 
-        user_id=user_id, 
-        document_id=document_id, 
-        original_filename=file.filename,
-        job_id=job_id
-    )
-    
-    return {"job_id": job_id, "status": "queued", "message": f"Ingestion for '{file.filename}' has been queued."}
+
+# ── Query ────────────────────────────────────────────────────────────────────
 
 @app.post("/query", response_model=QueryResponse)
 async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
-    user_id = x_user_id
     if not request.query.strip():
         raise HTTPException(status_code=400, detail="Query cannot be empty.")
 
@@ -412,70 +397,31 @@ async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
         raise HTTPException(status_code=503, detail="AI models are still loading, please try again in a moment.")
 
     start_time = time.time()
+    initial_state = {
+        "query": request.query,
+        "user_id": x_user_id,
+        "document_id": request.document_id,
+        "chat_history": request.chat_history,
+        "top_k": request.top_k,
+        "top_n": request.top_n,
+        "threshold": request.threshold,
+        "revision_count": 0,
+    }
 
     try:
-        initial_state = {
-            "query": request.query,
-            "user_id": user_id,
-            "document_id": request.document_id,
-            "chat_history": request.chat_history,
-            "top_k": request.top_k,
-            "top_n": request.top_n,
-            "threshold": request.threshold,
-            "revision_count": 0,
-            "query_id": request.query_id,
-        }
-
-        # Use the globally loaded graph_app
         final_state = await graph_app.ainvoke(initial_state)
-
-        mark_query_done(request.query_id)
-        end_time = time.time()
-
-        return QueryResponse(
-            query=request.query,
-            answer=_json_safe(final_state.get("draft_answer", "No answer generated.")),
-            latency_seconds=round(end_time - start_time, 2),
-            retrieved_chunks=_json_safe(final_state.get("retrieved_chunks", []))
-        )
     except Exception as e:
-        mark_query_done(request.query_id, f"Query failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+    return QueryResponse(
+        query=request.query,
+        answer=_json_safe(final_state.get("draft_answer", "No answer generated.")),
+        latency_seconds=round(time.time() - start_time, 2),
+        retrieved_chunks=_json_safe(final_state.get("retrieved_chunks", [])),
+    )
 
-@app.get("/query/events/{query_id}")
-async def query_events(query_id: str):
-    """SSE stream pushing live RAG pipeline progress for a query_id."""
-    q = register_query_events(query_id)
-    _QUERY_SSE_TIMEOUT = 300.0  # hard cap so a stuck stream can't leak forever
-
-    async def _stream():
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + _QUERY_SSE_TIMEOUT
-        try:
-            # A late-connecting client: if the query already finished, send the
-            # cached terminal event and stop instead of hanging on heartbeats.
-            done = latest_query_event(query_id)
-            if done and done.get("stage") == "done":
-                yield f"data: {json.dumps(done)}\n\n"
-                return
-
-            while loop.time() <= deadline:
-                try:
-                    event = q.get(timeout=0.5)
-                    yield f"data: {json.dumps(event)}\n\n"
-                    if event.get("stage") == "done":
-                        return
-                except _queue.Empty:
-                    yield f": heartbeat\n\n"
-        finally:
-            clear_query_events(query_id)
-
-    return StreamingResponse(_stream(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache",
-        "X-Accel-Buffering": "no",
-    })
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=settings.ENV == "development")

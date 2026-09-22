@@ -12,7 +12,7 @@
       "question": "How does the paper define a reference alternative?",
       "ground_truth_answer": "An alternative is defined as a reference alternative if and only if it is 'attention privileged,' meaning it is always paid attention to whenever it is in the menu. References are also assumed to be menu-independent.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_2_39869f60fb9b298e"
+        "6aaccfded7839b52af7b4d73_2-2_0002_d614f36e8815f1f2"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
@@ -24,7 +24,7 @@
       "question": "Does the model allow a decision maker to have more than one reference alternative?",
       "ground_truth_answer": "Yes, the framework allows for multiple reference alternatives; the status quo is given as one example of a possible reference alternative.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_2_39869f60fb9b298e"
+        "6aaccfded7839b52af7b4d73_2-2_0002_d614f36e8815f1f2"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
@@ -36,10 +36,11 @@
       "question": "Why might it be reasonable to assume a reference alternative directs attention?",
       "ground_truth_answer": "It is reasonable because when a decision maker applies a heuristic under limited attention, a reference alternative can plausibly direct where that attention goes; prior work provides a characterization of a reference-dependent random attention model along with special cases in which the attention function is further restricted.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_2_4897cc0d5af0487c"
+        "6aaccfded7839b52af7b4d73_1-2_0001_6b5984521bc66924"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        1,
         2
       ]
     },
@@ -48,11 +49,12 @@
       "question": "In the shoe-brand example, why does a favorite athlete's endorsed brand count as a menu-independent reference?",
       "ground_truth_answer": "It stays as a reference whenever the decision maker faces any shoe choice, so it does not depend on the particular menu presented, and it does not stop the decision maker from also having another favorite athlete, which allows for multiple reference alternatives.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_2_04fe21b2965f701c"
+        "6aaccfded7839b52af7b4d73_2-3_0003_19ef88e20cc9799e"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        2
+        2,
+        3
       ]
     },
     {
@@ -60,8 +62,7 @@
       "question": "What is 'Example 2' in the paper about, and what point does it illustrate about references?",
       "ground_truth_answer": "Example 2 describes a person who is impressed by a neighbor's new flat-screen 4K TV; the prior knowledge gained from that TV can act as a reference point the next time the person buys a TV, illustrating a case where the outside observer is unlikely to know about the reference, which keeps the possibility of multiple unobserved references intact.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_2_04fe21b2965f701c",
-        "6aa96d1b9886905fef15a625_3_658d3f48ab8b29aa"
+        "6aaccfded7839b52af7b4d73_2-3_0003_19ef88e20cc9799e"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
@@ -74,7 +75,7 @@
       "question": "What does 'Example 3' say about past choices acting as references?",
       "ground_truth_answer": "Example 3 supposes that a decision maker's past choices influence their future choices, effectively acting as references, while an outside observer only sees the current feasible sets and current choices, not the past ones -- again motivating the idea of unobservable, possibly multiple, references.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_3_658d3f48ab8b29aa"
+        "6aaccfded7839b52af7b4d73_3-3_0004_13dabb19a9aea13d"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
@@ -86,11 +87,12 @@
       "question": "What are the first two conditions stated in Definition 1 for a stochastic choice function?",
       "ground_truth_answer": "Definition 1 states that a stochastic choice function is a mapping p: X × X → [0,1]. The first two listed conditions are: (1) p(a,A) ≥ 0 for all a ∈ X; and (2) p(a,A) = 0 if a ∉ A.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_3_f7a281369856e249"
+        "6aaccfded7839b52af7b4d73_3-4_0005_28c4d7bc584b798e"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        3
+        3,
+        4
       ]
     },
     {
@@ -98,7 +100,7 @@
       "question": "According to the model, what happens once an alternative is established as a reference?",
       "ground_truth_answer": "If a reference alternative is present in the menu, it is always considered/paid attention to; this is exactly how the paper defines a reference alternative, though a reference could in principle be correlated with other properties (like preferences, a status quo, or an attribute such as a car's color), and the model is deliberately silent on any such further dependence.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_5_b5a0fe3f49c6a4b1"
+        "6aaccfded7839b52af7b4d73_5-5_0008_ecb60dcc4680891f"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
@@ -110,10 +112,11 @@
       "question": "Can the set of reference alternatives be identified from limited choice data?",
       "ground_truth_answer": "In most cases yes -- even with limited data, the set of references can usually be uniquely identified. For example, if there is no data on singleton menus but choice probabilities are available for all two- and three-element menus, identification is still mostly possible, aside from a rare exception case.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_7_c49c638213501825"
+        "6aaccfded7839b52af7b4d73_6-7_0011_d5b2d46e3c39082e"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        6,
         7
       ]
     },
@@ -122,10 +125,11 @@
       "question": "What is the relationship between the RAM-UR-IRA model and the more general RAM-UR model?",
       "ground_truth_answer": "The RAM-UR-IRA (random attention model with unobservable references and independent random attention) is a special case of the RAM-UR: because the attention parameter gamma takes strictly positive values on all alternatives, the full support assumption automatically holds.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_9_64e2d45d0cd83617"
+        "6aaccfded7839b52af7b4d73_8-9_0014_e568fa40294e5d45"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        8,
         9
       ]
     },
@@ -134,10 +138,11 @@
       "question": "How is the RAM-UR-IRA model (Definition 8) formally specified?",
       "ground_truth_answer": "A stochastic choice function p is a RAM-UR-IRA if there exists a strict total order over X and an attention parameter gamma: X -> (0,1] such that for every menu A and alternative x in A, p(x,A) equals gamma(x) times the product of (1 - gamma(y)) over all alternatives y in A that are preferred to x.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_9_13ea805ebcab0250"
+        "6aaccfded7839b52af7b4d73_8-9_0014_e568fa40294e5d45"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        8,
         9
       ]
     },
@@ -146,10 +151,11 @@
       "question": "Is the RAM-UR-IRA model a large or small departure from the standard IRA (independent random attention) model?",
       "ground_truth_answer": "It is described as a mathematically small departure from the IRA model, even though it nests both the IRA model and classical rationality as special cases; the key change is that gamma is allowed to take the value one for some alternatives.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_9_13ea805ebcab0250"
+        "6aaccfded7839b52af7b4d73_8-9_0014_e568fa40294e5d45"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        8,
         9
       ]
     },
@@ -158,7 +164,7 @@
       "question": "Why does C-WARP hold when an alternative is always chosen from a menu?",
       "ground_truth_answer": "If an alternative y is always chosen in a menu, it must be attention-privileged and better than every other alternative; if it weren't better, the full support assumption would imply the other alternative would be chosen with positive probability, which contradicts y always being chosen. Hence C-WARP is satisfied.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_13_7d2b71f73e30e5b3"
+        "6aaccfded7839b52af7b4d73_13-13_0022_e6d8e54b2a842059"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
@@ -170,11 +176,12 @@
       "question": "What happens to the RAM-UR model when the set of references is empty?",
       "ground_truth_answer": "With an empty set of references, the RAM-UR representation reduces exactly to a standard RAM (random attention model), so it suffices to construct a RAM representation directly; the paper does this by taking an arbitrary preference order and building an attention function accordingly.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_13_4190e6a3ea6664b6"
+        "6aaccfded7839b52af7b4d73_13-14_0023_6dca22ea840f68c9"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        13
+        13,
+        14
       ]
     },
     {
@@ -182,10 +189,11 @@
       "question": "In the transitivity proof of the binary relation P, what is shown in Cases 5 through 7?",
       "ground_truth_answer": "These cases show that the relation P is transitive even when one or more of x, y, z fall outside the reference set E-bar, by chaining together implications from earlier cases (e.g., using an intermediate element w in E-bar to bridge xPy and yPz), ultimately establishing that P is a complete and transitive binary relation.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_15_981f51d7ab46f29b"
+        "6aaccfded7839b52af7b4d73_14-15_0025_e9cf3a0f6c6650b3"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        14,
         15
       ]
     },
@@ -194,11 +202,12 @@
       "question": "What does the Expansion (EXP) property say, and which axioms imply it?",
       "ground_truth_answer": "Expansion (EXP) states that for menus A and B with alternatives x1 and x2 chosen with certainty in A and B respectively, then either x1 or x2 must be chosen with certainty in the union A ∪ B. Claim 2 shows that a stochastic choice function satisfying R-ASYM, R-IND, and REG must satisfy EXP.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_17_c90c6884c105f8a6"
+        "6aaccfded7839b52af7b4d73_6-7_0010_b9a48c275b842a43"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        17
+        6,
+        7
       ]
     },
     {
@@ -206,10 +215,11 @@
       "question": "What is Reference-Independence of Irrelevant Alternatives (RIIA), and how is it proved from REG?",
       "ground_truth_answer": "RIIA states that if an alternative a is never chosen from menu A, removing it does not change the choice probabilities of the remaining alternatives. Claim 1 proves that REG (regularity) implies RIIA, using the fact that choice probabilities for a menu without a must sum to one, forcing equality with the probabilities in the original menu.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_17_770300039457a450"
+        "6aaccfded7839b52af7b4d73_16-17_0028_8036b0b995741a84"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        16,
         17
       ]
     },
@@ -218,11 +228,12 @@
       "question": "What does Claim 3 establish about the binary relation '≻' constructed in the proof?",
       "ground_truth_answer": "Claim 3 shows that the relation ≻ is a strict total order over the full alternative set X: it is complete by construction, asymmetric among alternatives outside the reference set, and asymmetric between elements involving the reference set as well, using the Expansion (EXP) property to resolve comparisons.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_18_88cdaa9f91fe6805"
+        "6aaccfded7839b52af7b4d73_18-19_0030_ad57d021bc34310e"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        18
+        18,
+        19
       ]
     },
     {
@@ -230,10 +241,11 @@
       "question": "How does Lemma 2's proof derive a contradiction using R-IND and NT?",
       "ground_truth_answer": "The proof shows that if EDA* implies a positive choice probability p(a*, A') that must equal p(a*, A), and separately equals p(a*, A\\{a}), then applying R-IND and NT (No Transitivity-violation) yields the equation 1 = p(a*,∅)/p(a*,a), which is greater than 1 -- a contradiction that rules out the assumed case.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_18_552f9be510a9009b"
+        "6aaccfded7839b52af7b4d73_17-18_0029_e83ea9e4622c8131"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        17,
         18
       ]
     },
@@ -242,11 +254,12 @@
       "question": "In the case-by-case proof around alternatives a, b, c with a in the reference set, how is 'a ≻ c' derived?",
       "ground_truth_answer": "Using REG, p(c,{c}) = 1 since c is in the reference set. Applying EXP to the menu {a,b,c} forces either p(a,{a,b,c})=1 or p(c,{a,b,c})=1; since p(c,{a,b,c})=1 would contradict an earlier assumption via REG, it must be that p(a,{a,b,c})=1, and then REG on {a,c} gives p(a,{a,c})=1, so a ≻ c follows.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_19_43817ddffdc0b651"
+        "6aaccfded7839b52af7b4d73_20-21_0032_7831b40e52d12cf5"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        19
+        20,
+        21
       ]
     },
     {
@@ -254,11 +267,12 @@
       "question": "How does the proof rule out p(b,{a,b,c}) = 1 to show p(a,{a,b,c}) > 0?",
       "ground_truth_answer": "Applying RIIA gives p(b,{a,b}) = p(b,{a,b,c}) = 1, which is shown not to be possible under the assumptions in play, so by elimination p(a,{a,b,c}) must be greater than zero.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_20_27b233d768f818f5"
+        "6aaccfded7839b52af7b4d73_20-21_0032_7831b40e52d12cf5"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        20
+        20,
+        21
       ]
     },
     {
@@ -266,11 +280,12 @@
       "question": "How is p(c,{a,b,c}) = 0 established, and what does it imply for the preference order?",
       "ground_truth_answer": "By RIIA, p(c,{a,c}) equals p(c,{a,b,c}). Assuming the latter is positive leads, via R-IND, to a ratio that contradicts R-ASYM, so p(c,{a,b,c}) must equal 0. This in turn (via RIIA and Lemma 3) forces p(a,{a,c}) = 1, establishing that a ≻ c.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_20_ee34596590696320"
+        "6aaccfded7839b52af7b4d73_20-21_0032_7831b40e52d12cf5"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        20
+        20,
+        21
       ]
     },
     {
@@ -278,12 +293,12 @@
       "question": "What formula does the proof aim to recover in the IRA functional-form argument on page 21?",
       "ground_truth_answer": "The proof aims to show that for alternatives a, b in a menu A, the ratio p(a, A\\{b}) / p(a, A) equals 1 / (1 - p(b,{b})) for all a in A*, which is a key step toward recovering the functional form of the IRA (independent random attention) structure, drawing on the argument style used in Manzini and Mariotti (2014).",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_21_513df572bea22555",
-        "6aa96d1b9886905fef15a625_21_cd5f0f4f201221ce"
+        "6aaccfded7839b52af7b4d73_21-22_0034_c5174b20011e983f"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
-        21
+        21,
+        22
       ]
     },
     {
@@ -291,10 +306,11 @@
       "question": "What does Appendix 2 discuss?",
       "ground_truth_answer": "Appendix 2 discusses the Random Utility Model (RUM) representation of the RAM-UR-IRA and analyzes how the representation changes as the set of reference alternatives E changes.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_23_6d986c76d733b0d9"
+        "6aaccfded7839b52af7b4d73_22-23_0035_a6c0449b206c52b8"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        22,
         23
       ]
     },
@@ -303,10 +319,11 @@
       "question": "Which papers does the reference list cite regarding random scale systems and reference-dependent random attention?",
       "ground_truth_answer": "The reference list includes Falmagne (1978), 'A representation theorem for finite random scale systems,' in the Journal of Mathematical Psychology, Horan (2019) on random consideration and default options, and Kovach and Suleymanov (2023), 'Reference Dependence and Random Attention,' in the Journal of Economic Behavior and Organization.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_25_bbc0826f1f6cc8b1"
+        "6aaccfded7839b52af7b4d73_24-25_0037_37908c83f9384474"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        24,
         25
       ]
     },
@@ -315,10 +332,11 @@
       "question": "Which authors and works on status-quo bias and reference-dependent choice are cited near the end of the reference list?",
       "ground_truth_answer": "The reference list cites Tapkı (2007), 'Revealed incomplete preferences under status-quo bias,' in Mathematical Social Sciences, and Tserenjigmid (2019), 'Choosing with the worst in mind: A reference-dependent model,' in the Journal of Economic Behavior & Organization.",
       "chunk_ids": [
-        "6aa96d1b9886905fef15a625_26_55299fe04544e6ca"
+        "6aaccfded7839b52af7b4d73_25-26_0038_d69a5a35be34419a"
       ],
       "document_name": "Random_Attention.pdf",
       "pages": [
+        25,
         26
       ]
     },
@@ -327,7 +345,7 @@
       "question": "Which prior context-compression methods does the paper mention as passing cached key-value states to the decoder?",
       "ground_truth_answer": "The paper mentions that methods including UniGist pass cached key-value states to the decoder together with carefully designed gist-token attention masks to obtain more informative compressed representations; EPL further improves compression by adjusting positional encodings of gist tokens, and xRAG explores related directions.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_3_194cb1f7a522a1e4"
+        "6aacd031d7839b52af7b4d74_3-3_0006_7e99ba1689f46a10"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -339,11 +357,12 @@
       "question": "What is the 'layerwise dilution bottleneck' hypothesis discussed around Figure 4?",
       "ground_truth_answer": "The layerwise dilution bottleneck hypothesis is that information which is accessible in earlier LLM layers is not fully retained by the time it reaches the final layer's state. This motivates examining how information evolves across both the width and depth dimensions when an LLM is tuned as a compressor, using a probing compressor trained on hidden states from a single chosen layer, evaluated with F1 on SQuAD and HotpotQA.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_4_504908ff6b9e0e64"
+        "6aacd031d7839b52af7b4d74_4-5_0009_60f9476e993bf424"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        4
+        4,
+        5
       ]
     },
     {
@@ -351,11 +370,12 @@
       "question": "How does the model account for the varying contextual importance of different senders when compressing context?",
       "ground_truth_answer": "The model assigns each sender a learnable information capacity to reflect its varying contextual importance during compression.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_5_6caa88e93eb07022"
+        "6aacd031d7839b52af7b4d74_5-6_0012_cee88c6df556218b"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        5
+        5,
+        6
       ]
     },
     {
@@ -363,10 +383,11 @@
       "question": "How is the transmission plan between senders and receiver slots computed in the compression method?",
       "ground_truth_answer": "Given a utility matrix and sender/receiver capacities, the transmission plan is obtained by solving an optimization problem that minimizes the total cost, defined as 1 minus the utility, subject to constraints that the assignment mass for each sender sums to its capacity (rho_t) and the mass received by each slot sums to its capacity (rho_k). Unlike self-attention weights, which normalize independently per slot, this formulation couples all sender-slot assignments through shared marginal constraints.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_6_755928325b57ad42"
+        "6aacd031d7839b52af7b4d74_5-6_0012_cee88c6df556218b"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        5,
         6
       ]
     },
@@ -375,7 +396,7 @@
       "question": "What are the compression and non-compression baselines described on page 6?",
       "ground_truth_answer": "The compression baselines include a method that passes KV states of compression tokens to the decoder and Activation Beacon, which introduces interleaved placement of compression tokens. The non-compression baselines are Zero-shot with context (an untrained baseline with zero information loss), Zero-shot without context (an untrained baseline with complete information loss), and Prompt tuning.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_6_322ea9000a725d90"
+        "6aacd031d7839b52af7b4d74_6-6_0013_d92f27510de59988"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -387,11 +408,11 @@
       "question": "How does the proposed method (ComprExIT) perform on summarization, fact-checking, and in-context learning tasks?",
       "ground_truth_answer": "ComprExIT outperforms the uncompressed baseline on XSum summarization and FEVER fact-checking, while remaining competitive on SST-2 in-context learning, suggesting that it generalizes well across various domains beyond its main QA training setup.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_7_ca30233f59e13d5b"
+        "6aacd031d7839b52af7b4d74_16-16_0035_93ad26b273b198ae"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        7
+        16
       ]
     },
     {
@@ -399,7 +420,7 @@
       "question": "What does the ablation study in Table 2 show about removing allocation or using only a single layer?",
       "ground_truth_answer": "On Llama-3.2-1B, removing allocation ('w/o alloc.') drops average EM by about 4.65 and F1 by about 4.61 relative to full ComprExIT (52.34 EM / 66.55 F1). Using only the embedding layer causes the largest drop (about 23.69 EM / 22.06 F1), while using only layer 9 has the smallest drop among single-layer variants (about 3.00 EM / 2.66 F1), and using only the last layer also causes a large drop (about 16.22 EM / 17.20 F1).",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_7_39b9c52fc2e4c518"
+        "6aacd031d7839b52af7b4d74_7-7_0015_76672bcc0c1a8b57"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -411,7 +432,7 @@
       "question": "On Llama-3.2-3B, how does ComprExIT's aggregate EM/F1 compare to Prompt tuning and Zero-shot baselines?",
       "ground_truth_answer": "On Llama-3.2-3B, ComprExIT achieves an average EM/F1 of 52.34/66.55, below Prompt tuning with context (62.28/73.35) but well above Zero-shot with context (35.13/50.73) and Zero-shot without context (17.02/23.32).",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_7_db55fa992edced84"
+        "6aacd031d7839b52af7b4d74_7-7_0015_76672bcc0c1a8b57"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -423,11 +444,12 @@
       "question": "What limitations does the paper acknowledge about the scope of its experiments?",
       "ground_truth_answer": "The paper acknowledges two main limitations: due to limited computational resources, it does not test ComprExIT on larger backbones such as 32B or 70B models or on substantially longer contexts such as 32k or 128k tokens; and its experiments focus only on text-only language models, leaving extension to vision-language models for future work.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_9_d52f10b0ab402d8a"
+        "6aacd031d7839b52af7b4d74_9-10_0021_5565969260fcc42d"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        9
+        9,
+        10
       ]
     },
     {
@@ -435,7 +457,7 @@
       "question": "What does the layer-selection analysis (Figure 6-left) reveal about which LLM layers are most useful for compression?",
       "ground_truth_answer": "The gating mass concentrates on early and middle layers, with a clear emphasis on layers before layer 10 and consistently low weights assigned to later layers, suggesting that effective compression mainly relies on representations that still preserve lexical and (implicitly) semantic information rather than the most processed, later-layer representations.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_9_b3490220a4f72c19"
+        "6aacd031d7839b52af7b4d74_9-9_0020_e53d7087c25154bf"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -447,11 +469,12 @@
       "question": "How does the paper summarize its overall contribution in the conclusion?",
       "ground_truth_answer": "The paper concludes that its method addresses the limitations of layerwise dilution and lack of allocation, and that experiments show it consistently outperforms prior compression methods; more broadly, it argues the proposed paradigm offers a more flexible design space beyond standard attention-based formulations, and expresses hope that the work inspires further research in context compression.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_9_799599cd0da99ac2"
+        "6aacd031d7839b52af7b4d74_9-10_0021_5565969260fcc42d"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        9
+        9,
+        10
       ]
     },
     {
@@ -459,10 +482,11 @@
       "question": "Who funded this research and what computational resources are acknowledged?",
       "ground_truth_answer": "The work was supported in part by the UK Engineering and Physical Sciences Research Council through a Turing AI Fellowship (grant nos. EP/V020579/1 and EP/V020579/2) and the Prosperity Partnership scheme (grant no. UKRI566). The authors also acknowledge use of King's Computational Research, Engineering and Technology Environment (CREATE) at King's College London.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_10_dd2b38631d1fa8e3"
+        "6aacd031d7839b52af7b4d74_9-10_0021_5565969260fcc42d"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        9,
         10
       ]
     },
@@ -471,11 +495,12 @@
       "question": "Which ACL 2025 paper is cited as a comprehensive study of gist token-based context compression?",
       "ground_truth_answer": "The reference list cites a paper (with an author surname 'Dou' listed) titled 'A silver bullet or a compromise for full attention? A comprehensive study of gist token-based context compression,' published in the Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (ACL 2025, Volume 1: Long Papers), Vienna, Austria.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_10_1cbefae3c401162d"
+        "6aacd031d7839b52af7b4d74_10-11_0023_d600adcc82930bd6"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        10
+        10,
+        11
       ]
     },
     {
@@ -483,11 +508,12 @@
       "question": "What NAACL 2025 and prompt-compression paper is cited among the references?",
       "ground_truth_answer": "The references cite a NAACL 2025 paper appearing in the Proceedings of the Conference of the North American Chapter of the ACL (Human Language Technologies), and also cite '500xCompressor: Generalized prompt compression for large language models' by Zongqian Li, Yixuan Su, and Nigel Collier.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_11_63246622d1ec1d0e"
+        "6aacd031d7839b52af7b4d74_11-12_0026_3497d8e2cae7d788"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        11
+        11,
+        12
       ]
     },
     {
@@ -495,10 +521,11 @@
       "question": "Which reading-comprehension dataset paper by Joshi et al. is cited in the references?",
       "ground_truth_answer": "The references cite TriviaQA, described as 'a large scale distantly supervised challenge dataset for reading comprehension,' by Mandar Joshi, Eunsol Choi, Daniel Weld, and Luke Zettlemoyer, presented at ACL.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_11_a9e8320703de447e"
+        "6aacd031d7839b52af7b4d74_10-11_0024_8f988d49cb44292a"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        10,
         11
       ]
     },
@@ -507,10 +534,11 @@
       "question": "Which survey on long-context language modeling and which 'Lost in the Middle' paper are cited?",
       "ground_truth_answer": "The references cite 'A comprehensive survey on long context language modeling' (arXiv preprint, 2025) by Jiaheng Liu and coauthors, and 'Lost in the middle: How language models use long contexts' by Nelson F. Liu, Kevin Lin, John Hewitt, Ashwin Paranjape, Michele Bevilacqua, Fabio Petroni, and Percy Liang, published in Transactions of the Association for Computational Linguistics (2024).",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_12_7010f83a421c02de"
+        "6aacd031d7839b52af7b4d74_11-12_0026_3497d8e2cae7d788"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        11,
         12
       ]
     },
@@ -519,10 +547,12 @@
       "question": "What autoencoding-free compression paper and gist-token paper are cited together on page 12?",
       "ground_truth_answer": "The references cite 'Autoencoding-free context compression for LLMs via contextual semantic anchors' (ICLR, 2026) by Xin Liu and coauthors, alongside Jesse Mu, Xiang Lisa Li, and Noah Goodman's paper on 'Learning to compress prompts with gist tokens.'",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_12_24bf8dce4629ab96"
+        "6aacd031d7839b52af7b4d74_11-12_0026_3497d8e2cae7d788",
+        "6aacd031d7839b52af7b4d74_12-12_0027_e8a8056f0cc05b1d"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        11,
         12
       ]
     },
@@ -531,11 +561,12 @@
       "question": "Which long-input-text QA benchmark by Pang et al. is cited in the reference list?",
       "ground_truth_answer": "The reference list cites QuALITY, described as a 'Question answering with long input texts, yes!' dataset, by Richard Yuanzhe Pang and a large group of coauthors including Alicia Parrish, Nitish Joshi, and Samuel Bowman.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_12_9d347621d2d913cf"
+        "6aacd031d7839b52af7b4d74_12-13_0028_e052e6ab9f281513"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        12
+        12,
+        13
       ]
     },
     {
@@ -543,7 +574,7 @@
       "question": "How does ComprExIT perform on the out-of-domain MRQA benchmarks compared to ICAE?",
       "ground_truth_answer": "ComprExIT remains the strongest compression method across both Llama-3.2-1B-Base and Llama-3.2-3B-Base on the six out-of-domain MRQA benchmarks, showing its learned compressed representations transfer well beyond the training domains. ICAE is noted as competitive specifically on the RelationExtraction dataset, whose contexts are very short on average, which effectively gives it a larger compression-token budget relative to context length since prior methods use a fixed budget of 128 compression tokens.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_16_02f7bba6901b1d4b"
+        "6aacd031d7839b52af7b4d74_16-16_0036_1e1931774b7cace3"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -555,7 +586,7 @@
       "question": "What ROUGE scores does ComprExIT achieve on abstractive summarization, and what does this suggest?",
       "ground_truth_answer": "ComprExIT achieves the best ROUGE-1/ROUGE-L scores of 0.333/0.262 on the summarization evaluation, outperforming both ICAE and the uncompressed prompt-tuning baseline, suggesting that it preserves not only answer-relevant facts but also the broader discourse information needed for abstractive generation.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_16_8d5021cef2c5aec3"
+        "6aacd031d7839b52af7b4d74_16-16_0035_93ad26b273b198ae"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -567,11 +598,12 @@
       "question": "How do ComprExIT's compression-token attention patterns compare to ICAE's?",
       "ground_truth_answer": "ComprExIT's compression tokens maintain non-negligible connections to distant tokens, preserving the semantic order of the context without sacrificing the ability to capture long-range dependencies. ICAE, by contrast, tries to maintain an order bias (visible as a diagonal pattern of high attention values), but its attention patterns are weakly localized, and it can collectively ignore some important tokens such as a specific entity name or number.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_16_ddd150460a807e03"
+        "6aacd031d7839b52af7b4d74_5-6_0012_cee88c6df556218b"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        16
+        5,
+        6
       ]
     },
     {
@@ -579,11 +611,12 @@
       "question": "What broader efficiency benefits does the paper claim for effective context compression?",
       "ground_truth_answer": "The paper states that effective compression can reduce memory usage, latency, and computational cost while preserving salient information from the original context, which may make document-grounded models more accessible to researchers and practitioners with limited hardware resources and could broaden the practical use of language models in resource-constrained settings.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_18_9185c579129d2d59"
+        "6aacd031d7839b52af7b4d74_18-19_0041_3c56cdc8da64595c"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        18
+        18,
+        19
       ]
     },
     {
@@ -591,10 +624,11 @@
       "question": "What theoretical support does the paper provide for the idea of information dilution across layers?",
       "ground_truth_answer": "The paper argues that even if each layer introduces only a modest shift, the total drift can still grow with network depth and effectively increase M, making the compression objective harder to optimize; this claim is backed both by a theoretical result in Appendix A.7/A.8 and by the extensive experiments in Section 3 and the appendix.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_18_dc1c6f43cdf6c24c"
+        "6aacd031d7839b52af7b4d74_17-18_0040_99ff81dd0644b6ff"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        17,
         18
       ]
     },
@@ -603,10 +637,11 @@
       "question": "What training configuration was used for the Activation Beacon baseline (Table 11)?",
       "ground_truth_answer": "Activation Beacon was trained on the SlimPajama-6B dataset using 1 billion tokens on 4 NVIDIA A100 GPUs in bfloat16 precision, with a context length of 512 and generation length of 128. The beacon configuration used a window/stride of 64/64, a beacon ratio of 4, full-coverage beacon attention, attending to previous beacons, trainable q/k/v beacon parameters, interleaved beacon position, and strict grouping by stride.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_20_734c2b10802480a6"
+        "6aacd031d7839b52af7b4d74_19-20_0042_dce33401600ba0b4"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        19,
         20
       ]
     },
@@ -615,7 +650,7 @@
       "question": "What does the NeurIPS checklist guidance say about disclosing limitations that the authors themselves acknowledge?",
       "ground_truth_answer": "It says the authors should use their best judgment and recognize that individual actions in favor of transparency play an important role in developing norms that preserve the integrity of the research community, and that reviewers will specifically be instructed not to penalize honesty about limitations.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_21_49ab8a6517aa03c8"
+        "6aacd031d7839b52af7b4d74_21-21_0045_fab2e4488a66887d"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -627,7 +662,7 @@
       "question": "According to the checklist guidelines, what should the abstract and introduction of a NeurIPS paper contain?",
       "ground_truth_answer": "The abstract and/or introduction should clearly state the claims made, including the paper's contributions and important assumptions and limitations; the guidelines note that answering 'No' or 'N/A' to whether claims match the paper's scope will not be viewed favorably by reviewers, and that claims should match the theoretical and experimental results.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_21_3b28c13bc17afaca"
+        "6aacd031d7839b52af7b4d74_21-21_0044_398ee4aaa46cf0a8"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -639,7 +674,7 @@
       "question": "What examples does the checklist give of implicit assumptions that affect a method's performance?",
       "ground_truth_answer": "The guidelines give the examples of a facial recognition algorithm performing poorly under low image resolution or low lighting, and a speech-to-text system failing to reliably provide closed captions for online lectures because it cannot handle technical jargon, illustrating factors authors should reflect on when discussing their approach's limitations.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_21_d88de17e6c6155c3"
+        "6aacd031d7839b52af7b4d74_21-21_0045_fab2e4488a66887d"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -651,7 +686,7 @@
       "question": "What does the NeurIPS checklist require regarding reproducibility, even when code is not released?",
       "ground_truth_answer": "While NeurIPS does not require releasing code, the checklist requires that all submissions provide a reasonable avenue for reproducibility appropriate to the contribution -- for example, clearly explaining how to reproduce a new algorithm, or fully and clearly describing a new model architecture.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_22_a9290dcc5effb83d"
+        "6aacd031d7839b52af7b4d74_22-22_0047_67482bca0e1f21a7"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -663,11 +698,12 @@
       "question": "How did the authors answer the open-access/reproducibility checklist question, and what justification did they give?",
       "ground_truth_answer": "The authors answered 'Yes,' justifying it by stating that they provide a detailed description of their method in Section 5, details of the experimental setup in Section 6.1, and the specifications needed to reproduce the training process in Section A.8.2.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_22_013eed604a83d766"
+        "6aacd031d7839b52af7b4d74_22-23_0048_6b2fbde4f1d89c5b"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        22
+        22,
+        23
       ]
     },
     {
@@ -675,10 +711,11 @@
       "question": "How did the authors respond to the 'theory assumptions and proofs' checklist item?",
       "ground_truth_answer": "The authors answered 'Yes,' noting that Appendix Section A.7 includes a formal theoretical result -- a proposition on the accumulation of layerwise drift -- states its assumption explicitly (finite first moments for the relevant distributions), and provides a complete proof based on the triangle inequality for the Wasserstein distance.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_22_6749c76ba058935a"
+        "6aacd031d7839b52af7b4d74_21-22_0046_1a42e01702c81532"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        21,
         22
       ]
     },
@@ -687,7 +724,7 @@
       "question": "What do the checklist guidelines say instructions for reproducing results should contain?",
       "ground_truth_answer": "The instructions should contain the exact command and environment needed to reproduce the results, per the NeurIPS code and data submission guidelines, and authors should provide instructions on data access and preparation -- covering raw data, preprocessed data, intermediate data, and generated data -- as well as scripts to reproduce the experimental results.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_23_f9653948c9284a5d"
+        "6aacd031d7839b52af7b4d74_23-23_0049_e3feb6bd88a147fc"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -699,7 +736,7 @@
       "question": "What do the guidelines say about anonymized code releases and omitted experiments?",
       "ground_truth_answer": "The guidelines state that if only a subset of experiments is reproducible, the authors should state which ones are omitted and why; at submission time, to preserve anonymity, authors should release anonymized versions of code if applicable, and providing extensive information in supplemental material is recommended, though including URLs to data and code is also permitted.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_23_26a87333dc71d889"
+        "6aacd031d7839b52af7b4d74_23-23_0049_e3feb6bd88a147fc"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -711,8 +748,7 @@
       "question": "How did the authors answer the checklist question on statistical significance of experiments, and why?",
       "ground_truth_answer": "The authors answered 'No,' explaining that although the reported QA metrics (EM/F1) are aggregate scores computed over evaluation splits with many validation examples, and the latency analysis averages 200 timed iterations with reported mean and standard deviation, the main experimental results are still presented without run-to-run error bars, confidence intervals, or formal significance tests, so they answer the item conservatively.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_23_e5e34d187455149d",
-        "6aa96e8e9886905fef15a626_23_56961f0e6a1f72f8"
+        "6aacd031d7839b52af7b4d74_23-23_0050_1a5896409dd2066e"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -724,7 +760,7 @@
       "question": "According to the checklist guidelines, where should the experimental setting be described in sufficient detail?",
       "ground_truth_answer": "The experimental setting should be presented in the core of the paper to a level of detail necessary to appreciate the results and make sense of them, with the full details optionally provided via code, an appendix, or supplemental material.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_23_29fb90dba8249831"
+        "6aacd031d7839b52af7b4d74_23-23_0050_1a5896409dd2066e"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -736,7 +772,7 @@
       "question": "How did the authors answer the checklist question on compute resources, and what details did they give?",
       "ground_truth_answer": "The authors answered 'Yes,' stating that they provide key compute details needed to reproduce the reported experiments, including device information such as the use of 4x NVIDIA A100 GPUs for training.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_24_ab52f17d699f7725"
+        "6aacd031d7839b52af7b4d74_24-24_0052_3e4b8b627252bd20"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -748,11 +784,12 @@
       "question": "What does the checklist say about maintaining anonymity in relation to the NeurIPS Code of Ethics?",
       "ground_truth_answer": "It states that the paper and supplementary material were prepared in accordance with the NeurIPS Code of Ethics principles and remain anonymous until the camera-ready stage, and that if authors answer 'No' to reviewing the Code of Ethics, they should explain the special circumstances requiring a deviation, while still preserving anonymity (e.g., for legal or jurisdictional reasons).",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_24_7bc18ca86866fd27"
+        "6aacd031d7839b52af7b4d74_24-25_0053_4bc159b670a29b5c"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        24
+        24,
+        25
       ]
     },
     {
@@ -760,11 +797,12 @@
       "question": "How did the authors answer the checklist question about licenses for existing assets used in the paper?",
       "ground_truth_answer": "The authors answered 'Yes,' stating that all assets used in the paper -- including code, datasets, and pre-trained models -- are appropriately attributed to their original creators or owners.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_25_838810b833edf651"
+        "6aacd031d7839b52af7b4d74_25-26_0056_47b7ce5ff681add1"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
-        25
+        25,
+        26
       ]
     },
     {
@@ -772,10 +810,11 @@
       "question": "What do the checklist guidelines say authors should include for each existing asset they cite or use?",
       "ground_truth_answer": "Authors should cite the original paper that produced the code package or dataset, state which version of the asset is used (including a URL if possible), include the name of the license (e.g., CC-BY 4.0) for each asset, and for scraped data, provide the copyright and terms of service of the source.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_26_0e1ded60344ae30b"
+        "6aacd031d7839b52af7b4d74_25-26_0057_bb8d26fd48f120b1"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        25,
         26
       ]
     },
@@ -784,8 +823,7 @@
       "question": "How did the authors answer the checklist question about IRB approval for human-subjects research, and why?",
       "ground_truth_answer": "The authors answered 'N/A,' with the justification that the work does not involve crowdsourcing or research with human participants, so IRB-style review is not applicable.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_26_029d7aa9ed042b62",
-        "6aa96e8e9886905fef15a626_27_760eeaf6fc2620d7"
+        "6aacd031d7839b52af7b4d74_26-27_0059_a8e8277180615570"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
@@ -798,10 +836,11 @@
       "question": "What do the checklist guidelines say about disclosing institution-identifying information for initial submissions?",
       "ground_truth_answer": "The guidelines note that IRB-style procedures can vary significantly between institutions and locations, and that authors are expected to adhere to the NeurIPS Code of Ethics and their own institution's guidelines; for initial submissions, authors should not include information that would break anonymity, such as naming the institution conducting the review.",
       "chunk_ids": [
-        "6aa96e8e9886905fef15a626_27_2d66dd4aa9c463ac"
+        "6aacd031d7839b52af7b4d74_26-27_0059_a8e8277180615570"
       ],
       "document_name": "Context_Compression.pdf",
       "pages": [
+        26,
         27
       ]
     }
