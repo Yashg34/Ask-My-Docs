@@ -4,7 +4,7 @@ const aiClient = require('../lib/aiClient');
 
 exports.askQuery = async (req, res) => {
     try {
-        const { query, documentId, topK, topN, threshold, chatHistory, queryId } = req.body;
+        const { query, documentId, topK, topN, threshold, chatHistory, queryId, sessionId } = req.body;
 
         if (!query || !query.trim()) {
             return res.status(400).json({ error: { code: 400, message: "Query cannot be empty." } });
@@ -44,7 +44,8 @@ exports.askQuery = async (req, res) => {
             latencySeconds: aiData.latency_seconds,
             retrievedChunks: aiData.retrieved_chunks,
             owner: req.user.id,
-            document: documentId || null
+            document: documentId || null,
+            session: sessionId || null
         });
 
         return res.status(200).json({

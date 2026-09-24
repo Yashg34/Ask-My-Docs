@@ -8,10 +8,10 @@ const generateToken = (userId) => {
 
 exports.register = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { name, email, password } = req.body;
 
-        if (!email?.trim() || !password?.trim()) {
-            return res.status(400).json({ error: { code: 400, message: 'Email and password are required' } });
+        if (!name?.trim() || !email?.trim() || !password?.trim()) {
+            return res.status(400).json({ error: { code: 400, message: 'Name, email and password are required' } });
         }
 
         if ([email, password].some((field) => field?.trim() === "" || field === undefined)) {
@@ -24,9 +24,10 @@ exports.register = async (req, res) => {
             return res.status(409).json({ error: { code: 409, message: 'User with this email already exists' } });
         }
 
-        const user = await User.create({ 
-            email: emailNorm, 
-            password 
+        const user = await User.create({
+            name,
+            email: emailNorm,
+            password
         });
 
         const createdUser = await User.findById(user._id).select("-password");

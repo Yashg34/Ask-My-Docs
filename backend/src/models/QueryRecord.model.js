@@ -26,6 +26,11 @@ const queryRecordSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
+    },
+    session: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Session',
+        required: false // allow existing queries to remain valid
     }
 }, { timestamps: true });
 

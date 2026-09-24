@@ -21,12 +21,15 @@ app.use(cors(corsOptions));
 
 const authRoutes = require('./src/routes/auth.routes');
 const documentRoutes = require('./src/routes/documents.routes');
+const usersRoutes = require('./src/routes/users.routes');
+const sessionsRoutes = require('./src/routes/sessions.routes');
 const queryRoutes = require('./src/routes/query.routes');
 
-// Use routes
 app.use('/auth', authRoutes);
 app.use('/documents', documentRoutes);
 app.use('/query', queryRoutes);
+app.use('/users', usersRoutes);
+app.use('/sessions', sessionsRoutes);
 
 app.get('/health', (req, res) => {
     res.status(200).json({ message: 'Node.js API Gateway is running smoothly!' });

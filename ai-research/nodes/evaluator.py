@@ -15,17 +15,17 @@ with open(Path(__file__).resolve().parent.parent / "guardrails/output_guardrails
 # Matches [doc, Page X] and [doc, Pages X-Y] (en-dash or hyphen). Case-insensitive
 # on "Page(s)". Anything else in brackets (markdown links, array[i], [1] footnotes)
 # does not match and is correctly ignored as "not a citation attempt".
-_CITATION_RE = re.compile(r"\[([^,\]]+),\s*Pages?\s*(\d+)(?:\s*[-–]\s*(\d+))?\]", re.IGNORECASE)
-
+_CITATION_RE = re.compile(r"\[(.*?),\s*Pages?\s*(\d+\vert{}Unknown)(?:\s*[-–]\s*(\d+))?\]", re.IGNORECASE)
 
 def extract_citations(answer: str) -> set[tuple[str, int, int]]:
     """Returns {(doc_name, page_start, page_end)}; single-page cites have start == end."""
     out = set()
     for doc, p0, p1 in _CITATION_RE.findall(answer):
-        lo = int(p0)
-        out.add((doc.strip(), lo, int(p1) if p1 else lo))
+        # Prevent ValueError if the LLM cites "Page Unknown"
+        lo = int(p0) if p0.isdigit() else 0
+        hi = int(p1) if p1 and p1.isdigit() else lo
+        out.add((doc.strip(), lo, hi))
     return out
-
 
 def _valid_page_targets(retrieved_chunks: list) -> set[tuple[str, int]]:
     """Every (doc_name, page) a retrieved chunk actually covers, expanding
@@ -36,10 +36,18 @@ def _valid_page_targets(retrieved_chunks: list) -> set[tuple[str, int]]:
         name = meta.get("document_name", meta.get("document_id", "Doc"))
         lo = meta.get("page_start", meta.get("page"))
         hi = meta.get("page_end", lo)
-        if lo is None:
+        
+        # Safely handle missing pages or "Unknown" strings to prevent int() crashes
+        if lo is None or str(lo).lower() == "unknown":
+            targets.add((name, 0))
             continue
-        for p in range(int(lo), int(hi) + 1):
-            targets.add((name, p))
+            
+        try:
+            for p in range(int(lo), int(hi) + 1):
+                targets.add((name, p))
+        except (ValueError, TypeError):
+            continue
+            
     return targets
 
 
