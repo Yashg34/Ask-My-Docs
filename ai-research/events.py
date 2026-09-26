@@ -25,10 +25,13 @@ _STAGE_LABELS = {
 
 
 def register_query_events(query_id: str) -> _queue.Queue:
-    """Register a queue for a query; the SSE endpoint consumes from it."""
-    q = _queue.Queue()
-    _query_queues[query_id] = q
-    return q
+    """Register (or reuse) the queue for a query; the SSE endpoint consumes from
+    it. Idempotent: whichever caller (the SSE subscriber or the /query handler)
+    arrives first creates the queue, the other reuses the same object -- calling
+    this twice must never silently replace an already-referenced queue."""
+    if query_id not in _query_queues:
+        _query_queues[query_id] = _queue.Queue()
+    return _query_queues[query_id]
 
 
 def clear_query_events(query_id: str):

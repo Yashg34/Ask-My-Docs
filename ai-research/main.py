@@ -21,7 +21,7 @@ from fastapi import (
 )
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -30,6 +30,13 @@ from ingestion.chunker import chunk_pages
 from ingestion.indexer import build_indexes
 from ingestion.parser import parse_pdf_slice
 from observability import instrument_fastapi, setup_langsmith, setup_logfire
+from events import (
+    clear_query_events,
+    latest_query_event,
+    mark_query_done,
+    register_query_events,
+)
+import queue as _queue
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 UPLOAD_DIR = Path("data")
@@ -126,6 +133,7 @@ class QueryRequest(BaseModel):
     top_n: int = 5       # Post-reranking (sends the top-N best chunks to Gemini)
     threshold: float = 0.05
     chat_history: List[dict] = Field(default_factory=list)
+    query_id: Optional[str] = None  # correlates this request with /query/events/{query_id} SSE progress
 
 
 class QueryResponse(BaseModel):
@@ -396,6 +404,7 @@ async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
     if graph_app is None:
         raise HTTPException(status_code=503, detail="AI models are still loading, please try again in a moment.")
 
+    query_id = request.query_id or ""
     start_time = time.time()
     initial_state = {
         "query": request.query,
@@ -406,12 +415,20 @@ async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
         "top_n": request.top_n,
         "threshold": request.threshold,
         "revision_count": 0,
+        "query_id": query_id,
     }
 
     try:
         final_state = await graph_app.ainvoke(initial_state)
     except Exception as e:
+        mark_query_done(query_id, message=f"Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        # Give a slow SSE subscriber a moment to read the final event before the
+        # queue disappears; the generator already holds its own queue reference,
+        # so this is a memory-cleanup safeguard, not a correctness requirement.
+        mark_query_done(query_id)
+        clear_query_events(query_id)
 
     return QueryResponse(
         query=request.query,
@@ -421,6 +438,98 @@ async def handle_query(request: QueryRequest, x_user_id: str = Header(...)):
     )
 
 
+@app.get("/query/events/{query_id}")
+async def stream_query_events(query_id: str):
+    """SSE progress stream for a query in flight. The frontend opens this
+    *before or alongside* POSTing to /query, using the same query_id for both.
+    register_query_events() is idempotent, so it doesn't matter which of the
+    two requests (this one, or the POST handler via the graph's node spans)
+    reaches the shared queue first."""
+
+    async def event_generator():
+        q = register_query_events(query_id)
+
+        # Late-connect fallback: if the POST request already progressed past
+        # some stages before this SSE connection opened, immediately replay
+        # the most recent known stage so the UI isn't stuck on "Starting...".
+        cached = latest_query_event(query_id)
+        if cached:
+            yield f"data: {json.dumps(cached)}\n\n"
+            if cached.get("stage") == "done":
+                return
+
+        deadline = time.time() + 600  # hard cap: never stream longer than 10 minutes
+        while time.time() < deadline:
+            try:
+                event = await run_in_threadpool(q.get, True, 15)  # blocking get, 15s timeout
+            except _queue.Empty:
+                yield ": keepalive\n\n"  # SSE comment, ignored by EventSource, keeps proxies from closing idle conns
+                continue
+            yield f"data: {json.dumps(event)}\n\n"
+            if event.get("stage") == "done":
+                return
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.delete("/documents/{document_id}")
+async def delete_document(
+    document_id: str,
+    x_user_id: str = Header(...),
+):
+    try:
+        from qdrant_client import models
+        from ingestion.indexer import qdrant_client
+
+        result = qdrant_client.delete(
+            collection_name=settings.QDRANT_COLLECTION_NAME,
+            points_selector=models.FilterSelector(
+                filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="metadata.document_id",
+                            match=models.MatchValue(
+                                value=document_id
+                            ),
+                        ),
+                        models.FieldCondition(
+                            key="metadata.user_id",
+                            match=models.MatchValue(
+                                value=x_user_id
+                            ),
+                        ),
+                    ]
+                )
+            ),
+        )
+
+        print(
+            f"🗑️ Deleted vectors for document "
+            f"{document_id} belonging to user {x_user_id}"
+        )
+
+        return {
+            "message": "Document vectors deleted successfully",
+            "document_id": document_id,
+        }
+
+    except Exception as e:
+        print(
+            f"❌ Failed to delete vectors for "
+            f"document {document_id}: {e}"
+        )
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete document vectors",
+        )
+
+    
 if __name__ == "__main__":
     import uvicorn
 

@@ -10,6 +10,8 @@ export default defineConfig({
       '/documents': 'http://localhost:5000',
       '/query': 'http://localhost:5000',
       '/health': 'http://localhost:5000',
+      '/sessions': 'http://localhost:5000',
+      '/users': 'http://localhost:5000',
     },
   },
 });

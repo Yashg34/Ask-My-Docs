@@ -2,6 +2,41 @@ const QueryRecord = require('../models/QueryRecord.model');
 const Document = require('../models/Document.model');
 const aiClient = require('../lib/aiClient');
 
+exports.streamQueryEvents = async (req, res) => {
+    const { queryId } = req.params;
+    if (!queryId) {
+        return res.status(400).json({ error: { code: 400, message: 'queryId is required' } });
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    let upstream;
+    try {
+        upstream = await aiClient.get(`/query/events/${queryId}`, {
+            _userId: req.user.id,
+            responseType: 'stream',
+            timeout: 0, // this is a long-lived stream, not a normal request; aiClient's 120s default would kill it
+        });
+    } catch (error) {
+        console.error('SSE proxy connect error:', error.message);
+        res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Could not connect to progress stream' })}\n\n`);
+        return res.end();
+    }
+
+    // Pipe FastAPI's SSE bytes straight through; relay backpressure/close in both directions.
+    upstream.data.pipe(res);
+    upstream.data.on('error', (err) => {
+        console.error('SSE upstream error:', err.message);
+        res.end();
+    });
+    req.on('close', () => {
+        upstream.data.destroy();
+    });
+};
+
 exports.askQuery = async (req, res) => {
     try {
         const { query, documentId, topK, topN, threshold, chatHistory, queryId, sessionId } = req.body;
@@ -12,11 +47,14 @@ exports.askQuery = async (req, res) => {
 
         // Defaults match the pipeline contract (top_k=15 wide fetch, top_n=5
         // post-FlashRank); the frontend may override via topK/topN/threshold.
+        // threshold: was 0.05, which filtered every reranked candidate to zero on
+        // some queries (FlashRank cross-encoder scores aren't reliably calibrated
+        // against a fixed cutoff). Matches the corrected default in ai-research/main.py.
         const payload = {
             query: query,
             top_k: topK ?? 15,
             top_n: topN ?? 5,
-            threshold: threshold ?? 0.05,
+            threshold: threshold ?? 0.0,
             chat_history: chatHistory || [],
             query_id: queryId || ''
         };

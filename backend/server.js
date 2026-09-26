@@ -35,6 +35,16 @@ app.get('/health', (req, res) => {
     res.status(200).json({ message: 'Node.js API Gateway is running smoothly!' });
 });
 
+// Production static serving for the built frontend (frontend/dist), with SPA
+// fallback so client-side routes (e.g. a hard refresh on /login) don't 404.
+// Must come after every API route above so it never shadows them. In dev,
+// Vite's own dev server + proxy handles this instead (see frontend/vite.config.js).
+if (process.env.NODE_ENV === 'production') {
+    const distPath = path.join(__dirname, '..', 'frontend', 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => res.sendFile(path.join(distPath, 'index.html')));
+}
+
 // Uniform { error: { code, message } } contract for every 4xx/5xx (matches the
 // ai-research FastAPI envelope). Catches errors controllers don't — notably
 // multer upload failures — so they never hit Express's HTML error handler.

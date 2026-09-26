@@ -12,5 +12,11 @@
     "frontend": "npm run dev --workspace frontend",
     "build:frontend": "npm run build --workspace frontend",
     "install:all": "npm install"
+  },
+  "dependencies": {
+    "katex": "^0.18.9",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0"
   }
 }

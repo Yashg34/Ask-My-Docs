@@ -5,6 +5,7 @@ import { api } from './lib/api';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const [user, setUser] = useState(() => JSON.parse(localStorage.getItem('ask-my-docs-user') || 'null'));
@@ -33,7 +34,7 @@ function App() {
         />
         <Route 
           path="/" 
-          element={user ? <DashboardPage user={user} onLogout={logout} /> : <Navigate to="/login" />} 
+          element={user ? <ErrorBoundary><DashboardPage user={user} onLogout={logout} /></ErrorBoundary> : <Navigate to="/login" />} 
         />
       </Routes>
     </BrowserRouter>

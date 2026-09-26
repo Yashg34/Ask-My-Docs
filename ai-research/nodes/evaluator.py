@@ -15,7 +15,7 @@ with open(Path(__file__).resolve().parent.parent / "guardrails/output_guardrails
 # Matches [doc, Page X] and [doc, Pages X-Y] (en-dash or hyphen). Case-insensitive
 # on "Page(s)". Anything else in brackets (markdown links, array[i], [1] footnotes)
 # does not match and is correctly ignored as "not a citation attempt".
-_CITATION_RE = re.compile(r"\[(.*?),\s*Pages?\s*(\d+\vert{}Unknown)(?:\s*[-–]\s*(\d+))?\]", re.IGNORECASE)
+_CITATION_RE =re.compile(r"([A-Za-z0-9_.\-]+\.pdf)\s*,\s*Pages?\s*(\d+)(?:\s*-\s*(\d+))?", re.I)
 
 def extract_citations(answer: str) -> set[tuple[str, int, int]]:
     """Returns {(doc_name, page_start, page_end)}; single-page cites have start == end."""
