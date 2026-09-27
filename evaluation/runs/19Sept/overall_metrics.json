@@ -1,0 +1,50 @@
+{
+  "n_records_in_file": 66,
+  "n_errored_excluded": 1,
+  "errored_ids": [
+    "q034"
+  ],
+  "n_questions_evaluated": 65,
+  "avg_K_retrieved_all": 3.5692307692307694,
+  "avg_K_retrieved_nonempty": 3.80327868852459,
+  "n_empty_retrieval": 4,
+  "K_distribution": {
+    "0": 4,
+    "1": 7,
+    "2": 8,
+    "3": 9,
+    "4": 3,
+    "5": 34
+  },
+  "hit_rate@K": 0.7846153846153846,
+  "context_recall@K": 0.7769230769230769,
+  "context_precision@K": 0.2674358974358974,
+  "context_precision@K_excl_empty": 0.2849726775956284,
+  "mrr@K": 0.6587179487179488,
+  "citation_presence": 0.9230769230769231,
+  "citation_precision_macro": 0.7316666666666667,
+  "n_questions_with_citations": 60,
+  "citation_recall": 0.7538461538461538,
+  "citation_recall_among_cited": 0.8166666666666667,
+  "latency_mean": 33.78446153846154,
+  "latency_p50": 29.35,
+  "latency_p95": 57.045999999999985,
+  "latency_p99": 62.508399999999995,
+  "latency_min": 19.13,
+  "latency_max": 67.59,
+  "diag_hit@1": 0.5692307692307692,
+  "diag_hit@3": 0.7384615384615385,
+  "diag_hit@5": 0.7846153846153846,
+  "diag_lenient_page_hit": 0.8615384615384616,
+  "diag_ungrounded_cite_frac": 0.0,
+  "strict_ascii_brackets_only": {
+    "citation_presence": 0.676923076923077,
+    "citation_precision_macro": 0.7893939393939394,
+    "citation_recall": 0.5923076923076923,
+    "n_questions_with_citations": 44
+  },
+  "n_questions_judged": 65,
+  "faithfulness_mean": 0.9385,
+  "correctness_mean": 0.7538,
+  "answer_relevancy_mean": 0.9077
+}

@@ -1,25 +1,35 @@
 # Ask My Docs
 
-Ask My Docs is a full-stack document question-answering application. Users can
-register, upload PDFs, organize conversations into chat sessions, and ask
-questions against all their documents or a selected document. Answers include
-source-page citations and retrieved passages.
+**Chat with your own PDFs, with page-cited, guardrailed answers.**
 
-The application has three development processes:
+`React` · `Node/Express` · `FastAPI + LangGraph` · `Qdrant` · `MongoDB` · `Groq` · `Gemini`
+
+Ask My Docs is a full-stack document question-answering application. Users
+register, upload PDFs, organize conversations into chat sessions, and ask
+questions against all their documents or a single selected one. Every answer
+is checked against retrieved context and cited by PDF name and page before it
+reaches the user — the pipeline would rather say "I couldn't find that" than
+answer without support.
+
+The application has three services:
 
 1. **React + Vite** frontend (`frontend/`)
 2. **Node.js + Express** API, authentication, and persistence (`backend/`)
-3. **FastAPI + LangGraph** document ingestion and RAG service (`ai-research/`)
+3. **FastAPI + LangGraph** document ingestion and agentic RAG service (`ai-research/`)
 
 MongoDB stores application users, documents, sessions, and query history.
 Qdrant Cloud stores document embeddings and chunk metadata. Redis is optional
 and is used for asynchronous ingestion job status.
+
+> Licensed under [MIT](./LICENSE).
 
 ## Contents
 
 - [Features](#features)
 - [Architecture](#architecture)
 - [RAG pipeline](#rag-pipeline)
+  - [Pipeline diagram](#pipeline-diagram)
+  - [Model routing](#model-routing)
 - [Technology](#technology)
 - [Evaluation results](#evaluation-results)
 - [Project layout](#project-layout)
@@ -27,7 +37,8 @@ and is used for asynchronous ingestion job status.
 - [Install and run locally](#install-and-run-locally)
 - [API overview](#api-overview)
 - [Evaluation harness](#evaluation-harness)
-- [Deployment notes](#deployment-notes)
+- [Security and operations notes](#security-and-operations-notes)
+- [License](#license)
 
 ## Features
 
@@ -49,91 +60,49 @@ and is used for asynchronous ingestion job status.
 
 ## Architecture
 
-The diagram below follows the current implementation. Retrieval is **dense
-vector search in Qdrant followed by FlashRank reranking**; the current runtime
-does not use the older Chroma/BM25 hybrid-search design described in earlier
-documentation.
+A bird's-eye view of the system. For the full node-by-node LangGraph flow —
+including the input-safety gate, the post-retrieval context-safety check, and
+the reroute loop — see the [pipeline diagram](#pipeline-diagram) further down.
 
 ```mermaid
-flowchart LR
-    user([User])
+graph TD
+    User((User)) -->|"1 · Upload PDF / ask a question"| React[React Frontend]
+    React -->|"2 · REST + JWT cookie"| Node[Node.js + Express API]
+    Node -->|Persist / load state| Mongo[("MongoDB")]
 
-    subgraph client["Browser"]
-        ui["React UI<br/>Vite in development"]
+    Node -->|"3 · Ingest PDF or forward query"| FastAPI
+
+    subgraph ingestion["Ingestion (on upload)"]
+        FastAPI -.->|"Parse → chunk → embed"| Ingest["Ingestion Service<br/>PyMuPDF + all-MiniLM-L6-v2"]
+        Ingest --> Qdrant[("Qdrant Cloud<br/>vectors + chunk payloads")]
     end
 
-    subgraph app["Application API"]
-        api["Express API<br/>auth, upload, query, sessions"]
-        auth["JWT cookie<br/>auth middleware"]
-        mongo[("MongoDB<br/>users, documents,<br/>sessions, query history")]
+    subgraph orchestration["AI Orchestration · LangGraph"]
+        FastAPI["Graph entry<br/>Triage: input safety + intent routing"] --> Retriever[Retriever Node]
+        Retriever -->|"4 · dense vector search"| Qdrant
+        Retriever --> Reranker["Reranker Node<br/>FlashRank"]
+        Reranker --> Assembler[Context Assembler]
+        Assembler --> Generator[Generator Node]
+        Generator --> Validator["Evaluate Node<br/>citation + safety + answer critique"]
+        Validator -->|"rejected: revise, capped at 3"| Generator
+        Validator -->|accepted| Done(("Final answer"))
     end
 
-    subgraph ai["AI service · FastAPI + LangGraph"]
-        fastapi["FastAPI endpoints<br/>ingest, query, status, config"]
-        ingest["PDF ingestion<br/>PyMuPDF → page-aware chunks"]
-        embed["all-MiniLM-L6-v2<br/>local embeddings"]
-        triage["NeMo input safety<br/>+ intent/query routing"]
-        retrieve["Qdrant vector retrieval<br/>user/document filters"]
-        rerank["FlashRank reranker"]
-        assemble["Context assembly"]
-        check["Context check<br/>safety + support"]
-        generate["Answer generation"]
-        evaluate["Citation validation<br/>+ safety + answer critique"]
-        summary["Document summary"]
+    FastAPI --> Gateway
+    Generator --> Gateway
+    Validator --> Gateway
+
+    subgraph gateway_layer["Model Routing · LiteLLM"]
+        Gateway{"LiteLLM Router<br/>+ automatic fallbacks"} -->|cheap-model| Cheap["Groq gpt-oss-20b"]
+        Gateway -->|evaluator-model| EvalModel["Groq gpt-oss-120b"]
+        Gateway -->|strong-model| Strong["Gemini gemini-3.6-flash"]
     end
 
-    qdrant[("Qdrant Cloud<br/>vectors + chunk payloads")]
-    redis[("Redis (optional)<br/>ingestion job status")]
+    Gateway -->|"5 · return to graph"| Done
+    Done -->|"6 · answer + citations + retrieved chunks"| Node
+    Node -->|"7 · HTTP response"| React
 
-    subgraph models["Model providers via LiteLLM"]
-        groq["Groq<br/>routing / evaluator"]
-        gemini["Gemini<br/>answer generation"]
-        hf["Hugging Face<br/>model downloads"]
-    end
-
-    obs["Logfire / LangSmith<br/>optional observability"]
-
-    user --> ui
-    ui -->|"HTTP + cookie"| api
-    api --> auth
-    auth --> mongo
-    api -->|"PDF / query / status request"| fastapi
-    fastapi -->|"background ingestion"| ingest
-    fastapi -->|"X-User-Id + query"| triage
-    fastapi -.->|"SSE progress"| api
-    api -.->|"SSE progress relay"| ui
-
-    ingest --> embed
-    embed --> qdrant
-    ingest -.->|"job status"| redis
-    fastapi -.->|"poll job"| redis
-
-    triage -->|"greeting"| answer["Response"]
-    triage -->|"summary intent"| summary
-    summary --> answer
-    triage -->|"RAG intent"| retrieve
-    retrieve <-->|"embedding search"| qdrant
-    retrieve --> rerank --> assemble --> check
-    check -->|"unsafe / unsupported"| answer
-    check -->|"safe + supported"| generate
-    generate --> evaluate
-    evaluate -->|"accepted"| answer
-    evaluate -->|"revise (maximum 3 reroutes)"| generate
-    answer --> fastapi
-    fastapi --> api
-
-    triage -.-> groq
-    check -.-> groq
-    evaluate -.-> groq
-    summary -.-> groq
-    generate -.-> gemini
-    embed -.-> hf
-    rerank -.-> hf
-    triage -.-> obs
-    retrieve -.-> obs
-    check -.-> obs
-    generate -.-> obs
-    evaluate -.-> obs
+    Gateway -.->|optional| Obs[("Logfire / LangSmith")]
 ```
 
 ### Request and data flow
@@ -189,6 +158,63 @@ check service fails, `GUARDRAIL_FAIL_MODE=closed` (the default) fails closed;
 `open` allows the graph to proceed when the safety service is unavailable.
 Genuine safety blocks are not overridden by `open`.
 
+### Pipeline diagram
+
+This follows the graph wiring in
+[`ai-research/graph/build_graph.py`](./ai-research/graph/build_graph.py) node
+for node, including its routing functions (`intent_router`,
+`route_after_retrieval`, `context_router`, `evaluate_router`). Every node also
+emits a Logfire span and an SSE progress event as it runs.
+
+```mermaid
+flowchart TD
+    START(["Query + X-User-Id"]) --> TRIAGE
+
+    TRIAGE["<b>1 · Triage</b><br/>NeMo input guardrail (embeddings, no LLM)<br/>+ cheap-model: intent classify &amp; query rewrite"]
+    TRIAGE --> SAFE{"Input safe?"}
+    SAFE -- "no" --> REJECT_IN(["Guardrail rejection"]):::terminal
+    SAFE -- "yes" --> INTENT{"Intent"}
+
+    INTENT -- "GREETING" --> GREET(["Greeting response"]):::terminal
+    INTENT -- "SUMMARY" --> SUMMARIZE["Summarize<br/>strong-model, map-reduce over chunks"]
+    INTENT -- "RAG" --> RETRIEVE
+
+    SUMMARIZE --> SUM_DONE(["Document summary"]):::terminal
+
+    RETRIEVE["<b>2 · Retriever</b><br/>Qdrant dense vector search, top_k=15<br/>filtered by user_id (+ document_id)"]
+    RETRIEVE --> HAS_CHUNKS{"Any chunks?"}
+    HAS_CHUNKS -- "no" --> NO_INFO(["No-match answer"]):::terminal
+    HAS_CHUNKS -- "yes" --> RERANK
+
+    RERANK["<b>3 · Reranker</b><br/>FlashRank ms-marco-MiniLM-L-12-v2<br/>narrow to top_n=5 above threshold"]
+    RERANK --> ASSEMBLE["<b>4 · Context assembler</b><br/>chunks → formatted context (no LLM)"]
+    ASSEMBLE --> CTXCHECK
+
+    CTXCHECK["<b>5 · Context check</b> (evaluator-model)<br/>safe from prompt injection? supports the query?"]
+    CTXCHECK --> CTX_OK{"Safe &amp; supported?"}
+    CTX_OK -- "no" --> REJECT_CTX(["Rejection / no-support answer"]):::terminal
+    CTX_OK -- "yes" --> GENERATE
+
+    GENERATE["<b>6 · Generator</b> (strong-model)<br/>drafts a cited answer from the context"]
+    GENERATE --> EVALUATE
+
+    EVALUATE["<b>7 · Evaluate</b> (evaluator-model)<br/>citation validation + output safety + answer critique"]
+    EVALUATE --> ACCEPT{"Accepted?"}
+    ACCEPT -- "yes" --> FINAL(["Final cited answer"]):::terminal
+    ACCEPT -- "no — reroute to generator<br/>(revision_count &lt; MAX_REROUTES=3)" --> GENERATE
+
+    classDef terminal fill:#e9edff,stroke:#5067dc,color:#26314d,font-weight:bold;
+```
+
+Four LLM calls on the happy path: **Triage** (cheap-model) → **Context check**
+(evaluator-model) → **Generator** (strong-model) → **Evaluate**
+(evaluator-model). The NeMo input guardrail, retrieval, reranking, and context
+assembly add no LLM calls. The context check exists specifically to gate the
+expensive strong-model call behind a safety + relevance check; the evaluate
+node's answer critique decides whether the draft actually addresses the
+question and, if not, sends it back to the generator with feedback — capped at
+`MAX_REROUTES` (3) so a stubborn answer can't loop forever.
+
 ### Model routing
 
 LiteLLM uses the model aliases configured in
@@ -225,84 +251,21 @@ generation uses the model aliases defined by the corresponding graph nodes.
 
 ## Evaluation results
 
-The following values are from
-[`evaluation/runs/19Sept/overall_metrics.json`](./evaluation/runs/19Sept/overall_metrics.json).
-The raw run contained 66 records; errored question `q034` was excluded, leaving
-65 evaluated questions. The values describe this saved run and dataset, not a
-guarantee for future documents or queries.
-
-### Retrieval
+From a saved 65-question run of the golden-question harness (66 raw records,
+1 excluded for an error). Full methodology is in
+[`evaluation/evaluate.py`](./evaluation/evaluate.py) and
+[`evaluation/judge.py`](./evaluation/judge.py); these numbers describe that
+run and dataset, not a guarantee for future documents or queries.
 
 | Metric | Result | Meaning |
 |---|---:|---|
-| Mean chunks retrieved (all questions) | 3.5692 | Average result count, including empty retrievals |
-| Mean chunks retrieved (non-empty only) | 3.8033 | Average result count when at least one chunk was returned |
-| Empty retrievals | 4 / 65 (6.15%) | Questions with no retrieved chunks |
-| Retrieved-count distribution | 0: 4 · 1: 7 · 2: 8 · 3: 9 · 4: 3 · 5: 34 | Number of questions at each result count |
-| Hit Rate@K | 78.46% | At least one exact gold chunk ID was retrieved |
-| Context Recall@K | 77.69% | Fraction of expected gold chunk IDs retrieved, averaged by question |
-| Context Precision@K | 26.74% | Fraction of returned chunks matching gold chunk IDs, averaged by question; empty retrieval scores 0 |
-| Context Precision@K (non-empty only) | 28.50% | Precision averaged after excluding empty retrievals |
-| MRR@K | 0.6587 | Mean reciprocal rank of the first exact gold chunk |
-
-### Citations and answer quality
-
-| Metric | Result | Meaning |
-|---|---:|---|
-| Citation presence | 92.31% (60 / 65) | Questions whose answer included a parseable PDF/page citation |
-| Macro citation precision | 73.17% | Per-question precision of cited document/page pairs, macro-averaged over answers with citations |
+| Hit Rate@K | 78.46% | At least one exact gold chunk was retrieved |
+| Context Recall@K | 77.69% | Fraction of expected gold chunks retrieved, averaged by question |
+| Citation presence | 92.31% | Answers that included a parseable PDF/page citation |
 | Citation recall | 75.38% | Gold pages covered by citations, averaged by question |
-| Citation recall among cited answers | 81.67% | Citation recall for answers that included citations |
-| Faithfulness (LLM judge) | 0.9385 / 1 | How well answer claims are supported by retrieved context |
-| Correctness (LLM judge) | 0.7538 / 1 | Agreement with the golden reference answer |
-| Answer relevancy (LLM judge) | 0.9077 / 1 | Whether the answer addresses the question |
-
-The LLM judge scores each of faithfulness, correctness, and answer relevancy at
-`0`, `0.5`, or `1`, then the report records their means. Its criteria are
-documented in [`evaluation/judge.py`](./evaluation/judge.py).
-
-### Latency
-
-| Statistic | Seconds |
-|---|---:|
-| Mean | 33.7845 |
-| P50 (median) | 29.35 |
-| P95 | 57.0460 |
-| P99 | 62.5084 |
-| Minimum | 19.13 |
-| Maximum | 67.59 |
-
-### Diagnostics and strict citation parsing
-
-| Diagnostic | Result |
-|---|---:|
-| Exact chunk Hit@1 | 56.92% |
-| Exact chunk Hit@3 | 73.85% |
-| Exact chunk Hit@5 | 78.46% |
-| Lenient document/page overlap hit | 86.15% |
-| Fraction of citations outside retrieved pages | 0.00% |
-
-The lenient page diagnostic can count an answer as a hit when a retrieved chunk
-overlaps a gold page, even if its exact chunk ID is not a gold ID. The
-ungrounded-citation diagnostic checks whether cited pages appear in any
-retrieved chunk.
-
-The report also includes a stricter citation parse that accepts ASCII brackets
-only (it does not normalize full-width `【】` brackets):
-
-| Strict ASCII-bracket-only metric | Result |
-|---|---:|
-| Citation presence | 67.69% (44 / 65) |
-| Macro citation precision | 78.94% |
-| Citation recall | 59.23% |
-
-The difference between regular and strict presence indicates that typographic
-brackets emitted in some answers affected citation detection in this evaluation
-script.
-
-Metric definitions and report generation are in
-[`evaluation/evaluate.py`](./evaluation/evaluate.py). Retrieval metrics use
-exact gold chunk IDs; citations are compared by PDF name and page.
+| Faithfulness (LLM judge) | 0.94 / 1 | How well answer claims are supported by retrieved context |
+| Correctness (LLM judge) | 0.75 / 1 | Agreement with the golden reference answer |
+| Answer relevancy (LLM judge) | 0.91 / 1 | Whether the answer addresses the question |
 
 ## Project layout
 
@@ -336,8 +299,7 @@ Ask-My-Docs/
 │   ├── generation/                 # Summary/answer generation logic
 │   ├── guardrails/                 # NeMo input and output policies
 │   ├── llm_gateway/                # LiteLLM router and model configuration
-│   ├── observability.py            # Logfire and LangSmith setup
-│   └── README.md                   # Detailed AI API contract
+│   └── observability.py            # Logfire and LangSmith setup
 ├── evaluation/
 │   ├── golden_dataset.json         # Golden question/reference dataset
 │   ├── run_pipeline.py             # Calls the live API and checkpoints batches
@@ -367,42 +329,10 @@ Ask-My-Docs/
 
 ### Environment variables
 
-Create a root `.env` from `.env.sample` and fill in credentials. Do not commit
+Create a root `.env` from `.env.sample` and fill in credentials — it documents
+every variable the three services read (Mongo, JWT, Groq/Gemini keys, Qdrant,
+Redis, guardrails, chunking/retrieval knobs, observability). Do not commit
 `.env` or place provider keys in source files.
-
-| Variable | Required | Purpose |
-|---|---|---|
-| `MONGODB_URI` | Yes for backend | MongoDB connection string |
-| `JWT_SECRET` | Yes for backend | Signs authentication tokens |
-| `PORT` | No | Express port; defaults to `5000` |
-| `NODE_ENV` | No | Backend runtime mode |
-| `CORS_ORIGIN` | No | Comma-separated allowed browser origins |
-| `GROQ_API_KEY` | Yes for AI service | Groq routing and evaluator model access |
-| `GEMINI_API_KEY` | Yes for AI service | Gemini generation model access |
-| `QDRANT_URL` | Yes for AI service | Qdrant Cloud URL |
-| `QDRANT_API_KEY` | Yes for AI service | Qdrant Cloud API key |
-| `QDRANT_COLLECTION_NAME` | No | Collection name; defaults to `master_docs` |
-| `HF_TOKEN` | No | Optional Hugging Face model access token |
-| `REDIS_URL` | No | Job-status store; defaults to `redis://localhost:6379` |
-| `NEMO_GUARDRAILS_CONFIG_PATH` | No | Guardrails config directory; defaults to `guardrails` |
-| `GUARDRAIL_FAIL_MODE` | No | `closed` by default; can be `open` on safety-service errors |
-| `ENV` | No | AI service mode; `development` enables reload when launched through `main.py` |
-| `TOP_K_RETRIEVAL` | No | Candidate count before reranking; default `15` |
-| `TOP_K_RERANK` | No | Maximum chunks after reranking; default `5` |
-| `CHUNK_SIZE` | No | Chunk target size in characters; default `1500` |
-| `CHUNK_OVERLAP` | No | Chunk overlap in characters; default `200` |
-| `ALLOWED_ORIGINS` | No | FastAPI CORS origins; defaults to `*` |
-| `LOGFIRE_TOKEN` | No | Enables Logfire when set |
-| `LANGSMITH_TRACING` | No | Enables LangSmith tracing when `true` |
-| `LANGSMITH_API_KEY` | No | LangSmith key when tracing is enabled |
-| `LANGSMITH_ENDPOINT` | No | LangSmith endpoint |
-| `LANGSMITH_PROJECT` | No | LangSmith project label |
-| `ADMIN_API_TOKEN` | No | Optional token protecting runtime config updates |
-
-`GROQ_API_KEY`, `GEMINI_API_KEY`, `QDRANT_URL`, and `QDRANT_API_KEY` have no
-Python defaults and are required for the AI service to initialize. The frontend
-uses same-origin relative API paths in production and the Vite proxy in
-development; `VITE_API_URL` is not required by its current API helper.
 
 For a local MongoDB server, use `localhost` in `MONGODB_URI`. When connecting
 from a container, `localhost` would refer to the container itself; use a
@@ -550,32 +480,6 @@ Example query body sent by the frontend:
 The response contains `data.answer`, `data.retrieved_chunks`,
 `data.latency_seconds`, and a MongoDB `history_id`.
 
-### AI service API
-
-The FastAPI service is normally reached through Express. User-scoped endpoints
-receive `X-User-Id` from the authenticated backend.
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/health` | AI service health response |
-| `POST` | `/ingest` | Accept PDF, document ID, and user ID for ingestion |
-| `GET` | `/ingest/status/{job_id}` | Read background ingestion job status |
-| `POST` | `/query` | Invoke the LangGraph question-answering pipeline |
-| `GET` | `/query/events/{query_id}` | Stream pipeline progress (SSE) |
-| `DELETE` | `/documents/{document_id}` | Delete a user's vectors for a document |
-| `GET` | `/config` | Read runtime pipeline configuration |
-| `PATCH` | `/config` | Update whitelisted runtime knobs |
-
-The AI query body uses snake_case (`document_id`, `top_k`, `top_n`,
-`chat_history`, `query_id`). The response includes the original query, answer,
-latency, and retrieved chunks with page metadata, vector score, and rerank score.
-Pipeline business outcomes such as greetings, refusals, and no-match answers
-are returned as normal query responses; API errors use the
-`{"error":{"code":...,"message":"..."}}` envelope.
-
-The AI API, request shapes, ingestion statuses, and error details are also
-documented in [`ai-research/README.md`](./ai-research/README.md).
-
 ## Evaluation harness
 
 The evaluation code separates live pipeline execution, algorithmic metrics,
@@ -604,21 +508,6 @@ backend and AI service must be running, the golden PDF must already be ingested
 into Qdrant, and evaluation credentials/document selection must be configured
 according to `evaluation/config.py`. Evaluation can incur provider API usage.
 
-## Deployment notes
-
-The current project tree includes the three application services and their
-local development commands. MongoDB and Qdrant are external dependencies;
-Redis may be run locally or omitted, with reduced job-status persistence.
-Production deployment should provide persistent MongoDB and Qdrant services,
-secrets through the deployment environment, and appropriate CORS origins.
-
-There is no Dockerfile or Compose file in the current repository tree, so
-container build/deploy commands are not included here. `npm run build
---workspace frontend` produces the static frontend bundle; in a deployed web
-architecture, serve that bundle alongside the backend or from a static host,
-while keeping API routing and cookie/CORS settings aligned with the public
-origin.
-
 ## Security and operations notes
 
 - Keep `.env`, provider keys, database credentials, and JWT secrets out of Git
@@ -633,3 +522,7 @@ origin.
   while handing them to the AI service.
 - `REDIS_URL` is optional, but its in-memory fallback does not preserve job
   status across AI service restarts.
+
+## License
+
+[MIT](./LICENSE) © 2026 Yash Gupta.
