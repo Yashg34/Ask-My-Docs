@@ -483,21 +483,21 @@ async def delete_document(
 ):
     try:
         from qdrant_client import models
-        from ingestion.indexer import qdrant_client
+        from retrieval.vector_store import get_qdrant_client
 
-        result = qdrant_client.delete(
+        result = get_qdrant_client().delete(
             collection_name=settings.QDRANT_COLLECTION_NAME,
             points_selector=models.FilterSelector(
                 filter=models.Filter(
                     must=[
                         models.FieldCondition(
-                            key="metadata.document_id",
+                            key="document_id",
                             match=models.MatchValue(
                                 value=document_id
                             ),
                         ),
                         models.FieldCondition(
-                            key="metadata.user_id",
+                            key="user_id",
                             match=models.MatchValue(
                                 value=x_user_id
                             ),
@@ -528,7 +528,6 @@ async def delete_document(
             status_code=500,
             detail="Failed to delete document vectors",
         )
-
     
 if __name__ == "__main__":
     import uvicorn

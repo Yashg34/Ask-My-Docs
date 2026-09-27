@@ -36,6 +36,7 @@ export default function ChatArea({
   const [failedQuestion, setFailedQuestion] = useState('');
 
   const eventSourceRef = useRef(null);
+  const scrollRef = useRef(null);
 
   const selectedDocument = useMemo(
     () =>
@@ -54,6 +55,13 @@ export default function ChatArea({
   useEffect(() => {
     return () => eventSourceRef.current?.close();
   }, []);
+
+  // Keep the newest message (or the "thinking…" placeholder) in view,
+  // without scrolling the whole page — only the message list scrolls.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [messages, loading, stageMessage]);
 
   const fetchMessages = async () => {
     try {
@@ -190,14 +198,8 @@ export default function ChatArea({
         )}
       </div>
 
-      <div
-        className="conversation"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.5rem',
-        }}
-      >
+      <div className="conversation-scroll" ref={scrollRef}>
+      <div className="conversation">
         {messages.length === 0 && !loading && (
           <div className="welcome">
             <div className="welcome-orb">✦</div>
@@ -212,27 +214,6 @@ export default function ChatArea({
               where the answer came from.
             </p>
 
-            <div className="suggestions">
-              <button
-                onClick={() =>
-                  setQuestion(
-                    'What is the main purpose of this document?'
-                  )
-                }
-              >
-                What is the main purpose of this document?
-              </button>
-
-              <button
-                onClick={() =>
-                  setQuestion(
-                    'Summarize the key points'
-                  )
-                }
-              >
-                Summarize the key points
-              </button>
-            </div>
           </div>
         )}
 
@@ -341,72 +322,77 @@ export default function ChatArea({
           </div>
         )}
       </div>
+      </div>
 
-      {error && (
-        <div className="error toast">
-          <span>{error}</span>
+      {/* Opaque footer, outside the scrolling region above, so message
+          text can never appear behind the input or the disclaimer. */}
+      <div className="chat-footer">
+        {error && (
+          <div className="error toast">
+            <span>{error}</span>
 
-          {failedQuestion && (
-            <button
-              type="button"
-              className="retry-button"
-              onClick={retry}
-              disabled={loading}
-            >
-              Try again
-            </button>
-          )}
-        </div>
-      )}
+            {failedQuestion && (
+              <button
+                type="button"
+                className="retry-button"
+                onClick={retry}
+                disabled={loading}
+              >
+                Try again
+              </button>
+            )}
+          </div>
+        )}
 
-      <form
-        className="question-box"
-        onSubmit={ask}
-      >
-        <textarea
-          value={question}
-          onChange={(e) => {
-            setQuestion(e.target.value);
-
-            // Remove the previous failure once
-            // the user starts entering a new query.
-            if (error) {
-              setError('');
-              setFailedQuestion('');
-            }
-          }}
-          placeholder={
-            selectedDocument
-              ? 'Ask a question about this document…'
-              : 'Ask anything about your documents…'
-          }
-          rows="1"
-          onKeyDown={(e) => {
-            if (
-              e.key === 'Enter' &&
-              !e.shiftKey
-            ) {
-              e.preventDefault();
-              ask(e);
-            }
-          }}
-        />
-
-        <button
-          className="send-button"
-          disabled={
-            loading || !question.trim()
-          }
-          aria-label="Send question"
+        <form
+          className="question-box"
+          onSubmit={ask}
         >
-          {loading ? '…' : '↑'}
-        </button>
-      </form>
+          <textarea
+            value={question}
+            onChange={(e) => {
+              setQuestion(e.target.value);
 
-      <p className="disclaimer">
-        Answers are generated from your documents.
-        Always verify important information.
-      </p>
+              // Remove the previous failure once
+              // the user starts entering a new query.
+              if (error) {
+                setError('');
+                setFailedQuestion('');
+              }
+            }}
+            placeholder={
+              selectedDocument
+                ? 'Ask a question about this document…'
+                : 'Ask anything about your documents…'
+            }
+            rows="1"
+            onKeyDown={(e) => {
+              if (
+                e.key === 'Enter' &&
+                !e.shiftKey
+              ) {
+                e.preventDefault();
+                ask(e);
+              }
+            }}
+          />
+
+          <button
+            className="send-button"
+            disabled={
+              loading || !question.trim()
+            }
+            aria-label="Send question"
+          >
+            {loading ? '…' : '↑'}
+          </button>
+        </form>
+
+        <p className="disclaimer">
+          Answers are generated from your documents.
+          Always verify important information.
+        </p>
+      </div>
     </section>
   );
 }

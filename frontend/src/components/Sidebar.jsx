@@ -261,7 +261,7 @@ export default function Sidebar({
       className="sidebar"
     >
       {/* Sessions Section */}
-      <div>
+      <section className="sidebar-section">
         <div className="sidebar-heading">
           <div>
             <p className="eyebrow">Conversations</p>
@@ -277,10 +277,7 @@ export default function Sidebar({
           </button>
         </div>
 
-        <div
-          className="documents"
-          style={{ marginTop: '1rem' }}
-        >
+        <div className="documents session-list">
           {sessionsLoading ? (
             <SkeletonRows count={3} />
           ) : sessions.length === 0 ? (
@@ -382,10 +379,10 @@ export default function Sidebar({
             ))
           )}
         </div>
-      </div>
+      </section>
 
       {/* Documents Section */}
-      <div>
+      <section className="sidebar-section">
         <div className="sidebar-heading">
           <div>
             <p className="eyebrow">Workspace</p>
@@ -474,7 +471,7 @@ export default function Sidebar({
             ))
           )}
         </div>
-      </div>
+      </section>
     </aside>
   );
 }

@@ -15,12 +15,20 @@ with open(Path(__file__).resolve().parent.parent / "guardrails/output_guardrails
 # Matches [doc, Page X] and [doc, Pages X-Y] (en-dash or hyphen). Case-insensitive
 # on "Page(s)". Anything else in brackets (markdown links, array[i], [1] footnotes)
 # does not match and is correctly ignored as "not a citation attempt".
-_CITATION_RE =re.compile(r"([A-Za-z0-9_.\-]+\.pdf)\s*,\s*Pages?\s*(\d+)(?:\s*-\s*(\d+))?", re.I)
+_CITATION_RE = re.compile(r"([A-Za-z0-9_.\-]+\.pdf)\s*,\s*Pages?\s*(\d+)(?:\s*-\s*(\d+))?", re.I)
+
+# Some page ranges come out with a non-breaking/figure/en/em hyphen or minus sign
+# (U+2011, U+2012, U+2013, U+2014, U+2212) instead of a plain "-", which the regex
+# above doesn't match -> "Pages 19‑20" was silently read as just "Page 19", dropping
+# page 20 from the citation entirely.
+_ODD_DASH_RE = re.compile(r"[\u2010-\u2015\u2212]")
+
 
 def extract_citations(answer: str) -> set[tuple[str, int, int]]:
     """Returns {(doc_name, page_start, page_end)}; single-page cites have start == end."""
     out = set()
-    for doc, p0, p1 in _CITATION_RE.findall(answer):
+    normalized = _ODD_DASH_RE.sub("-", answer)
+    for doc, p0, p1 in _CITATION_RE.findall(normalized):
         # Prevent ValueError if the LLM cites "Page Unknown"
         lo = int(p0) if p0.isdigit() else 0
         hi = int(p1) if p1 and p1.isdigit() else lo

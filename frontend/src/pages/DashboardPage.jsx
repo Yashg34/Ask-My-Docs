@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import logo from '../assets/logo.png';
 import Sidebar from '../components/Sidebar';
 import ChatArea from '../components/ChatArea';
 
@@ -96,7 +97,7 @@ export default function DashboardPage({ user, onLogout }) {
 
           {/* Sticky sidebar header */}
           <div className="sidebar-brand">
-            <span className="brand-mark small">A</span>
+            <img className="sidebar-logo" src={logo} alt="" />
             <strong>Ask My Docs</strong>
           </div>
 
@@ -117,21 +118,19 @@ export default function DashboardPage({ user, onLogout }) {
               onSelectDocument={setSelectedDocumentId}
             />
           </div>
-        </aside>
 
-        {/* MAIN DASHBOARD */}
-        <section className="dashboard-main">
-
-          {/* Fixed top-right controls */}
-          <header className="dashboard-topbar">
+          <div className="sidebar-footer">
             <button
               className="signout-button"
               onClick={onLogout}
             >
               Sign out
             </button>
-          </header>
+          </div>
+        </aside>
 
+        {/* MAIN DASHBOARD */}
+        <section className="dashboard-main">
           {/* Entire right side scrolls */}
           <div className="dashboard-chat">
             {selectedSessionId ? (

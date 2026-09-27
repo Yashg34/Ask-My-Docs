@@ -2,7 +2,7 @@
   "name": "ask-my-docs",
   "version": "1.0.0",
   "private": true,
-  "description": "Monorepo root for Ask-My-Docs. npm install here once — backend/ and frontend/ share the single root node_modules.",
+  "description": "Monorepo root for Ask-My-Docs. Run `npm install` here once -- backend/ and frontend/ share the single root node_modules via npm workspaces. Do NOT run npm install inside backend/ or frontend/ directly; app dependencies belong in their workspace manifests. Root-only development tooling belongs here.",
   "workspaces": [
     "backend",
     "frontend"
@@ -10,13 +10,10 @@
   "scripts": {
     "backend": "npm run dev --workspace backend",
     "frontend": "npm run dev --workspace frontend",
-    "build:frontend": "npm run build --workspace frontend",
-    "install:all": "npm install"
+    "dev:all": "concurrently --kill-others --names frontend,backend,ai-research --prefix-colors cyan,green,magenta \"npm:frontend\" \"npm:backend\" \"cd ai-research && python main.py\"",
+    "setup": "npm install && python -m pip install -r requirements.txt"
   },
-  "dependencies": {
-    "katex": "^0.18.9",
-    "react-markdown": "^10.1.0",
-    "rehype-katex": "^7.0.1",
-    "remark-math": "^6.0.0"
+  "devDependencies": {
+    "concurrently": "^10.0.5"
   }
 }
