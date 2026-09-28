@@ -5,7 +5,7 @@ from graph.state import GraphState
 from config import settings
 from retrieval.vector_store import get_qdrant_client
 
-CHUNK_BATCH_SIZE = 6
+CHUNK_BATCH_SIZE = 5
 MAX_CONCURRENT_BATCHES = 5
 
 

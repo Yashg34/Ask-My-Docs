@@ -8,7 +8,7 @@ model_list:
   # For final RAG Generation (needs large context window)
   - model_name: strong-model
     litellm_params:
-      model: gemini/gemini-3.6-flash     
+      model: gemini/gemini-2.5-flash     
       api_key: os.environ/GEMINI_API_KEY
 
   # For strict Fact-Checking & JSON/Pydantic Validation
